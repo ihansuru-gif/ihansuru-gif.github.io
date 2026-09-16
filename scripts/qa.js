@@ -17,6 +17,7 @@ const names = {
   arm64: `Dabolang-${version}-macOS-arm64.zip`,
   x64: `Dabolang-${version}-macOS-x64.zip`
 };
+const macDriveUrl = 'https://drive.google.com/drive/folders/1ycUT2dFEl6kkjgpZHcshUJSaTqAwLaWz';
 
 function dummy(filePath, header, byte) {
   const descriptor = fs.openSync(filePath, 'w');
@@ -69,6 +70,7 @@ try {
   assert.strictEqual(macManifest.assets.x64.url, `https://github.com/ihansuru-gif/ihansuru-gif.github.io/releases/download/${tag}/${names.x64}`);
   assert.strictEqual(macManifest.assets.arm64.sha256, hash(path.join(assetsRoot, names.arm64)));
   assert.strictEqual(macManifest.assets.x64.sha256, hash(path.join(assetsRoot, names.x64)));
+  assert.strictEqual(macManifest.manualDownloadUrl, macDriveUrl);
   assert.strictEqual(fs.existsSync(path.join(channelRoot, 'mac', names.arm64)), false);
   assert.strictEqual(fs.existsSync(path.join(channelRoot, 'mac', names.x64)), false);
   assert.strictEqual(fs.readFileSync(path.join(siteRoot, 'robots.txt'), 'utf8'), 'User-agent: *\nDisallow: /daborang-jitsi-screen-gallery/\n');
@@ -81,11 +83,13 @@ try {
     assert.match(html, /noindex,nofollow,noarchive,nosnippet,noimageindex/);
   }
   const macPage = fs.readFileSync(path.join(channelRoot, 'mac', 'index.html'), 'utf8');
-  assert.match(macPage, /Apple Silicon \(M1 이상\)/);
-  assert.match(macPage, /Intel Mac/);
+  assert.match(macPage, /http-equiv="refresh"/);
+  assert.match(macPage, /window\.location\.replace/);
+  assert.match(macPage, /Google Drive 열기/);
+  assert.ok(macPage.includes(macDriveUrl));
   assert.doesNotMatch(macPage, /Windows|\.exe|업데이트 확인/);
 
-  const workflow = fs.readFileSync(path.join(root, '.github', 'workflows', 'deploy-daborang.yml'), 'utf8');
+  const workflow = fs.readFileSync(path.join(root, '.github', 'workflows', 'deploy-daborang.yml'), 'utf8').replace(/\r\n/g, '\n');
   assert.match(workflow, /push:\s*\n\s+branches: \[main\]/);
   assert.match(workflow, /release:\s*\n\s+types: \[published\]/);
   assert.match(workflow, /workflow_dispatch:/);
@@ -118,7 +122,7 @@ try {
   const rejected = build(path.join(qaRoot, 'rejected-site'));
   assert.notStrictEqual(rejected.status, 0);
   assert.match(rejected.stderr, /Windows EXE 파일 크기|Windows EXE 파일 헤더/);
-  process.stdout.write('PASS: public update channel validates three assets and isolates Windows Pages updates from macOS Release downloads\n');
+  process.stdout.write('PASS: public update channel validates three assets and redirects existing macOS clients to the fixed Google Drive folder\n');
 } finally {
   fs.rmSync(qaRoot, { recursive: true, force: true });
 }

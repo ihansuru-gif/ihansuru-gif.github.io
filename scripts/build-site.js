@@ -7,6 +7,7 @@ const path = require('path');
 const EXPECTED_REPOSITORY = 'ihansuru-gif/ihansuru-gif.github.io';
 const PAGES_ORIGIN = 'https://ihansuru-gif.github.io';
 const CHANNEL_PATH = '/daborang-jitsi-screen-gallery/';
+const MACOS_DRIVE_FOLDER_URL = 'https://drive.google.com/drive/folders/1ycUT2dFEl6kkjgpZHcshUJSaTqAwLaWz';
 const MIN_BINARY_BYTES = 1024 * 1024;
 const MAX_BINARY_BYTES = 1900 * 1024 * 1024;
 const NOINDEX = '<meta name="robots" content="noindex,nofollow,noarchive,nosnippet,noimageindex">';
@@ -153,23 +154,31 @@ async function main() {
       size: sizes.x64
     }
   };
+  const macDownloadUrl = new URL(MACOS_DRIVE_FOLDER_URL);
+  if (macDownloadUrl.protocol !== 'https:' || macDownloadUrl.origin !== 'https://drive.google.com' ||
+      !/^\/drive\/folders\/[0-9A-Za-z_-]+\/?$/.test(macDownloadUrl.pathname) || macDownloadUrl.search || macDownloadUrl.hash) {
+    fail('macOS Google Drive 폴더 주소가 올바르지 않습니다.');
+  }
   writeJson(path.join(macRoot, 'latest.json'), {
     schemaVersion: 1,
     version,
     publishedAt,
-    assets: macAssets
+    assets: macAssets,
+    manualDownloadUrl: macDownloadUrl.href
   });
 
   const hiddenPage = `<!doctype html><html lang="ko"><head><meta charset="utf-8">${NOINDEX}<meta name="googlebot" content="noindex,nofollow,noarchive,nosnippet,noimageindex"><title>다볼랭</title></head><body></body></html>\n`;
   fs.writeFileSync(path.join(channelRoot, 'index.html'), hiddenPage, 'utf8');
   fs.writeFileSync(path.join(updateRoot, 'index.html'), hiddenPage, 'utf8');
+  const escapedDriveUrl = escapeHtml(macDownloadUrl.href);
   const macPage = `<!doctype html>
-<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${NOINDEX}<meta name="googlebot" content="noindex,nofollow,noarchive,nosnippet,noimageindex"><title>다볼랭 macOS</title>
-<style>*{box-sizing:border-box}body{margin:0;background:#f6f7fa;color:#171b24;font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR",sans-serif}main{width:min(440px,calc(100% - 32px));margin:14vh auto;padding:26px;background:#fff;border-radius:16px;box-shadow:0 12px 34px #17203318}h1{margin:0 0 18px;font-size:21px}.downloads{display:grid;gap:10px}a{padding:13px 15px;border-radius:10px;background:#172033;color:#fff;text-align:center;text-decoration:none;font-weight:700}a:hover,a:focus-visible{background:#2b3850}small{display:block;margin-top:16px;color:#858c99;text-align:center}</style></head>
-<body><main><h1>다볼랭 macOS</h1><div class="downloads"><a href="${escapeHtml(macAssets.arm64.url)}">Apple Silicon (M1 이상)</a><a href="${escapeHtml(macAssets.x64.url)}">Intel Mac</a></div><small>${escapeHtml(version)}</small></main></body></html>\n`;
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${NOINDEX}<meta name="googlebot" content="noindex,nofollow,noarchive,nosnippet,noimageindex"><meta http-equiv="refresh" content="0;url=${escapedDriveUrl}"><title>다볼랭 macOS</title>
+<style>*{box-sizing:border-box}body{margin:0;background:#f6f7fa;color:#171b24;font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR",sans-serif}main{width:min(440px,calc(100% - 32px));margin:14vh auto;padding:26px;background:#fff;border-radius:16px;box-shadow:0 12px 34px #17203318}h1{margin:0 0 10px;font-size:21px}p{margin:0 0 18px;color:#737b88;font-size:14px;line-height:1.5}a{display:block;padding:13px 15px;border-radius:10px;background:#172033;color:#fff;text-align:center;text-decoration:none;font-weight:700}a:hover,a:focus-visible{background:#2b3850}</style>
+<script>window.location.replace(${JSON.stringify(macDownloadUrl.href)});</script></head>
+<body><main><h1>다볼랭 macOS</h1><p>최신 버전 다운로드 폴더로 이동합니다.</p><a href="${escapedDriveUrl}">Google Drive 열기</a></main></body></html>\n`;
   fs.writeFileSync(path.join(macRoot, 'index.html'), macPage, 'utf8');
 
-  process.stdout.write(`READY ${version} windows=${windowsHash} arm64=${arm64Hash} x64=${x64Hash}\n`);
+  process.stdout.write(`READY ${version} windows=${windowsHash} arm64=${arm64Hash} x64=${x64Hash} macos=google-drive\n`);
 }
 
 main().catch((error) => {

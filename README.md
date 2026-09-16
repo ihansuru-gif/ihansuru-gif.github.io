@@ -12,6 +12,8 @@
 일반 push와 `deploy`를 끈 수동 실행은 더미 QA만 수행하며 사이트를 바꾸지 않습니다.
 
 - Windows manifest: `https://ihansuru-gif.github.io/daborang-jitsi-screen-gallery/update/latest.json`
-- macOS 다운로드: `https://ihansuru-gif.github.io/daborang-jitsi-screen-gallery/mac/`
+- macOS 다운로드: `https://ihansuru-gif.github.io/daborang-jitsi-screen-gallery/mac/` → 고정 Google Drive 폴더
+
+macOS ZIP은 Drive 폴더에서 수동으로 교체합니다. 앱에 들어 있는 GitHub Pages 주소는 유지되므로 기존 사용자도 같은 버튼으로 새 Drive 폴더에 연결됩니다.
 
 `noindex`와 `robots.txt`는 검색 노출을 줄이지만 URL 접근 자체를 막지는 않습니다.
