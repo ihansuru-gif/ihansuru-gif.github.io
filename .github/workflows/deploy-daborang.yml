@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: Published release tag (example: v3.5.9-t.64)
+        description: 'Published release tag (example: v3.5.9-t.64)'
         required: false
         type: string
       deploy:
