@@ -1,0 +1,141 @@
+name: Deploy Dabolang update channel
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/deploy-daborang.yml'
+      - 'scripts/**'
+      - 'package.json'
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Published release tag (example: v3.5.9-t.64)
+        required: false
+        type: string
+      deploy:
+        description: Deploy the selected published release after QA
+        required: true
+        default: false
+        type: boolean
+
+concurrency:
+  group: dabolang-public-update-channel
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - name: Run isolated dummy QA
+        run: npm test
+
+  build:
+    needs: qa
+    if: ${{ github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.deploy) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      pages: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - name: Resolve published release
+        id: release
+        shell: bash
+        env:
+          EVENT_TAG: ${{ github.event.release.tag_name }}
+          MANUAL_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          tag="${EVENT_TAG:-${MANUAL_TAG:-}}"
+          [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+      - name: Require a stable published release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          set -euo pipefail
+          state=$(gh release view "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --json isDraft,isPrerelease \
+            --jq 'if (.isDraft == false and .isPrerelease == false) then "stable" else "blocked" end')
+          test "$state" = "stable"
+      - name: Download the three release assets
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p incoming
+          release_state=$(gh release view "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --json isDraft,isPrerelease \
+            --jq '[.isDraft,.isPrerelease] | @tsv')
+          test "$release_state" = $'false\tfalse'
+          assets=(
+            "Dabolang-${VERSION}-Windows-x64.exe"
+            "Dabolang-${VERSION}-macOS-arm64.zip"
+            "Dabolang-${VERSION}-macOS-x64.zip"
+          )
+          for asset in "${assets[@]}"; do
+            gh release download "$RELEASE_TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --pattern "$asset" \
+              --dir incoming
+            test -f "incoming/$asset"
+          done
+          gh release view "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --json body \
+            --jq '.body // ""' > incoming/release-notes.txt
+      - name: Build verified Pages files
+        env:
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+        run: >-
+          node scripts/build-site.js
+          --tag "$RELEASE_TAG"
+          --repository "$GITHUB_REPOSITORY"
+          --assets incoming
+          --notes-file incoming/release-notes.txt
+          --output _site
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
