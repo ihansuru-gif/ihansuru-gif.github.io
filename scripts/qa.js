@@ -90,8 +90,14 @@ try {
   assert.match(workflow, /release:\s*\n\s+types: \[published\]/);
   assert.match(workflow, /workflow_dispatch:/);
   assert.match(workflow, /deploy:\s*\n\s+description:/);
-  assert.match(workflow, /github\.event_name == 'release'.*inputs\.deploy/);
-  assert.match(workflow, /qa:\s*\n\s+runs-on:/);
+  assert.match(workflow, /dispatch-release:\s*\n\s+if:.*github\.event_name == 'release'/);
+  assert.match(workflow, /actions: write/);
+  assert.match(workflow, /gh workflow run deploy-daborang\.yml/);
+  assert.match(workflow, /--ref main/);
+  assert.match(workflow, /-f release_tag=/);
+  assert.match(workflow, /-f deploy=true/);
+  assert.match(workflow, /github\.event_name == 'workflow_dispatch' && inputs\.deploy/);
+  assert.match(workflow, /qa:\s*\n\s+if:.*github\.event_name != 'release'.*\n\s+runs-on:/);
   assert.match(workflow, /build:\s*\n\s+needs: qa/);
   assert.match(workflow, /Require a stable published release/);
   assert.match(workflow, /--json isDraft,isPrerelease/);
