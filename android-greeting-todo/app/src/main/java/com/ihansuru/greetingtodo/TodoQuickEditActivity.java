@@ -1,6 +1,7 @@
 package com.ihansuru.greetingtodo;
 
 import android.app.Activity;
+import android.content.Context;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
@@ -9,12 +10,12 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.inputmethod.InputMethodManager;
-import android.content.Context;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
+import android.widget.SeekBar;
 import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -55,7 +56,7 @@ public class TodoQuickEditActivity extends Activity {
         top.setGravity(Gravity.CENTER_VERTICAL);
         top.setPadding(dp(12), dp(9), dp(12), dp(9));
         Button back = soft("‹");
-        TextView title = text("투두 내용 수정", 20, true, dark());
+        TextView title = text("투두 수정", 20, true, dark());
         Button save = primary("저장");
         top.addView(back, new LinearLayout.LayoutParams(dp(48), dp(44)));
         top.addView(title, new LinearLayout.LayoutParams(0, dp(44), 1));
@@ -72,13 +73,30 @@ public class TodoQuickEditActivity extends Activity {
 
         LinearLayout previewCard = card();
         previewCard.addView(text("미리보기", 15, true, dark()));
-        previewCard.addView(caption("위 날짜는 실제 표시되는 날 기준으로 자동 변경돼요"));
+        previewCard.addView(caption("날짜는 실제 표시되는 날 기준으로 자동 변경돼요"));
         preview = new TodoCardView(this);
         preview.setEditorMode(true);
         LinearLayout.LayoutParams previewLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         previewLp.setMargins(0, dp(10), 0, 0);
         previewCard.addView(preview, previewLp);
         content.addView(previewCard, cardLp(0));
+
+        LinearLayout styleCard = card();
+        styleCard.addView(text("색상", 16, true, dark()));
+        styleCard.addView(caption("색상환에서 투두 상단 색을 바로 바꿀 수 있어요"));
+        ColorWheelView wheel = new ColorWheelView(this);
+        wheel.setHue(Prefs.hue(this));
+        LinearLayout.LayoutParams wheelLp = new LinearLayout.LayoutParams(dp(176), dp(176));
+        wheelLp.gravity = Gravity.CENTER_HORIZONTAL;
+        wheelLp.setMargins(0, dp(8), 0, dp(4));
+        styleCard.addView(wheel, wheelLp);
+        TextView satLabel = caption("진하기  " + Prefs.saturation(this) + "%");
+        styleCard.addView(satLabel);
+        SeekBar saturation = new SeekBar(this);
+        saturation.setMax(64);
+        saturation.setProgress(Prefs.saturation(this) - 12);
+        styleCard.addView(saturation, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(42)));
+        content.addView(styleCard, cardLp(dp(12)));
 
         LinearLayout editCard = card();
         editCard.addView(text("할 일", 16, true, dark()));
@@ -92,6 +110,10 @@ public class TodoQuickEditActivity extends Activity {
         addLp.setMargins(0, dp(8), 0, 0);
         editCard.addView(add, addLp);
         content.addView(editCard, cardLp(dp(12)));
+
+        TextView completeHelp = caption("배경화면에서 체크 원을 누르면 완료된 항목은 목록에서 바로 사라져요");
+        LinearLayout.LayoutParams helpLp = matchWrap(dp(10));
+        content.addView(completeHelp, helpLp);
 
         Button saveBig = primary("투두 저장");
         LinearLayout.LayoutParams saveBigLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(56));
@@ -110,6 +132,22 @@ public class TodoQuickEditActivity extends Activity {
                 return;
             }
             addRow("", "업무", true);
+        });
+        wheel.setListener(h -> {
+            Prefs.setHue(this, h);
+            preview.refresh();
+        });
+        saturation.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                int value = 12 + progress;
+                satLabel.setText("진하기  " + value + "%");
+                if (fromUser) {
+                    Prefs.setSaturation(TodoQuickEditActivity.this, value);
+                    preview.refresh();
+                }
+            }
+            @Override public void onStartTrackingTouch(SeekBar seekBar) {}
+            @Override public void onStopTrackingTouch(SeekBar seekBar) {}
         });
 
         return page;
@@ -243,9 +281,7 @@ public class TodoQuickEditActivity extends Activity {
         return t;
     }
 
-    private TextView caption(String value) {
-        return text(value, 12.3f, false, Color.rgb(111, 122, 141));
-    }
+    private TextView caption(String value) { return text(value, 12.3f, false, Color.rgb(111, 122, 141)); }
 
     private GradientDrawable rounded(int color, float radius, int stroke, int strokeWidth) {
         GradientDrawable g = new GradientDrawable();

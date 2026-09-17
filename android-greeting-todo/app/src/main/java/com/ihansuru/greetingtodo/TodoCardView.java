@@ -18,6 +18,8 @@ import java.util.Locale;
 
 public class TodoCardView extends View {
     interface HeaderTapListener { void onHeaderTap(); }
+    interface EditTapListener { void onEditTap(); }
+    interface CompleteListener { void onComplete(int index); }
 
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint text = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -27,6 +29,8 @@ public class TodoCardView extends View {
     private int pad;
     private boolean editorMode;
     private HeaderTapListener headerTapListener;
+    private EditTapListener editTapListener;
+    private CompleteListener completeListener;
 
     public TodoCardView(Context context) { super(context); init(); }
     public TodoCardView(Context context, AttributeSet attrs) { super(context, attrs); init(); }
@@ -41,14 +45,17 @@ public class TodoCardView extends View {
 
     void setEditorMode(boolean value) { editorMode = value; }
     void setHeaderTapListener(HeaderTapListener listener) { headerTapListener = listener; }
+    void setEditTapListener(EditTapListener listener) { editTapListener = listener; }
+    void setCompleteListener(CompleteListener listener) { completeListener = listener; }
     void refresh() { requestLayout(); invalidate(); }
 
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
         int width = MeasureSpec.getSize(widthMeasureSpec);
         if (width <= 0 || MeasureSpec.getMode(widthMeasureSpec) == MeasureSpec.UNSPECIFIED) width = dp(310);
-        int count = Math.max(1, Prefs.items(getContext()).size());
-        int desired = headerHeight + dp(18) + count * rowHeight + dp(12);
+        int count = Prefs.items(getContext()).size();
+        int bodyHeight = count == 0 ? dp(58) : count * rowHeight + dp(12);
+        int desired = headerHeight + dp(18) + bodyHeight;
         setMeasuredDimension(width, resolveSize(desired, heightMeasureSpec));
     }
 
@@ -105,17 +112,24 @@ public class TodoCardView extends View {
         text.setColor(alpha(fg, 178));
         canvas.drawText("오늘 일정 " + Prefs.items(getContext()).size() + "개", pad, dp(60), text);
 
-        float cx = w - dp(28);
-        float cy = dp(31);
-        paint.setStyle(Paint.Style.STROKE);
-        paint.setStrokeWidth(dp(1.5f));
-        paint.setColor(alpha(fg, 184));
-        canvas.drawCircle(cx, cy, dp(5.5f), paint);
+        drawGear(canvas, w - dp(28), dp(31), fg, accent);
+    }
+
+    private void drawGear(Canvas canvas, float cx, float cy, int fg, int accent) {
+        paint.setStyle(Paint.Style.FILL);
+        paint.setColor(alpha(fg, 215));
+        canvas.save();
+        canvas.translate(cx, cy);
         for (int i = 0; i < 8; i++) {
-            double a = i * Math.PI * 2 / 8.0;
-            canvas.drawLine(cx + (float) Math.cos(a) * dp(9), cy + (float) Math.sin(a) * dp(9),
-                    cx + (float) Math.cos(a) * dp(13), cy + (float) Math.sin(a) * dp(13), paint);
+            canvas.save();
+            canvas.rotate(i * 45f);
+            canvas.drawRoundRect(new RectF(-dp(2.5f), -dp(15), dp(2.5f), -dp(9)), dp(2), dp(2), paint);
+            canvas.restore();
         }
+        canvas.drawCircle(0, 0, dp(10.5f), paint);
+        paint.setColor(accent);
+        canvas.drawCircle(0, 0, dp(4.2f), paint);
+        canvas.restore();
     }
 
     private void drawRows(Canvas canvas, int w) {
@@ -124,10 +138,20 @@ public class TodoCardView extends View {
         float start = headerHeight + dp(5);
         float checkX = pad + dp(1);
         float textX = pad + dp(29);
+
+        if (items.isEmpty()) {
+            text.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
+            text.setTextSize(sp(13.5f));
+            text.setTextAlign(Paint.Align.CENTER);
+            text.setColor(Color.rgb(126, 136, 151));
+            canvas.drawText("오늘 할 일 끝!", w / 2f, start + dp(35), text);
+            text.setTextAlign(Paint.Align.LEFT);
+            return;
+        }
+
         for (int i = 0; i < items.size(); i++) {
             float top = start + i * rowHeight;
             float cy = top + rowHeight * .53f;
-            boolean checked = Prefs.checked(getContext(), i);
             if (i > 0) {
                 paint.setStyle(Paint.Style.STROKE);
                 paint.setStrokeWidth(1);
@@ -136,28 +160,18 @@ public class TodoCardView extends View {
             }
 
             paint.setStyle(Paint.Style.FILL);
-            paint.setColor(checked ? Color.rgb(66, 139, 255) : Color.WHITE);
+            paint.setColor(Color.WHITE);
             canvas.drawCircle(checkX, cy, dp(8.5f), paint);
             paint.setStyle(Paint.Style.STROKE);
             paint.setStrokeWidth(dp(1.4f));
-            paint.setColor(checked ? Color.rgb(66, 139, 255) : Color.rgb(190, 200, 214));
+            paint.setColor(Color.rgb(190, 200, 214));
             canvas.drawCircle(checkX, cy, dp(8.5f), paint);
-            if (checked) {
-                paint.setColor(Color.WHITE);
-                paint.setStrokeWidth(dp(1.9f));
-                paint.setStrokeCap(Paint.Cap.ROUND);
-                canvas.drawLine(checkX - dp(3.6f), cy, checkX - dp(.8f), cy + dp(2.8f), paint);
-                canvas.drawLine(checkX - dp(.8f), cy + dp(2.8f), checkX + dp(4.8f), cy - dp(3.8f), paint);
-                paint.setStrokeCap(Paint.Cap.BUTT);
-            }
 
             text.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.NORMAL));
             text.setTextSize(sp(14));
-            text.setColor(checked ? Color.rgb(145, 152, 165) : Color.rgb(39, 49, 66));
-            text.setStrikeThruText(checked);
+            text.setColor(Color.rgb(39, 49, 66));
             String title = ellipsize(items.get(i), text, w - textX - dp(78));
             canvas.drawText(title, textX, cy + dp(5), text);
-            text.setStrikeThruText(false);
 
             drawPill(canvas, w - pad - dp(24), cy, i < cats.size() ? cats.get(i) : "업무");
         }
@@ -184,16 +198,31 @@ public class TodoCardView extends View {
     public boolean onTouchEvent(MotionEvent event) {
         if (editorMode) return false;
         if (event.getAction() == MotionEvent.ACTION_UP) {
+            float gearCx = getWidth() - dp(28);
+            float gearCy = dp(31);
+            float dx = event.getX() - gearCx;
+            float dy = event.getY() - gearCy;
+            if (dx * dx + dy * dy <= dp(25) * dp(25)) {
+                if (editTapListener != null) editTapListener.onEditTap();
+                performClick();
+                return true;
+            }
+
             float start = headerHeight + dp(5);
             if (event.getY() < start) {
                 if (headerTapListener != null) headerTapListener.onHeaderTap();
                 performClick();
                 return true;
             }
+
             int index = (int) ((event.getY() - start) / rowHeight);
-            if (index >= 0 && index < Prefs.items(getContext()).size()) {
-                Prefs.toggleChecked(getContext(), index);
-                invalidate();
+            if (index >= 0 && index < Prefs.items(getContext()).size()
+                    && event.getX() <= pad + dp(28)) {
+                if (completeListener != null) completeListener.onComplete(index);
+                else {
+                    Prefs.completeItem(getContext(), index);
+                    refresh();
+                }
                 performClick();
                 return true;
             }

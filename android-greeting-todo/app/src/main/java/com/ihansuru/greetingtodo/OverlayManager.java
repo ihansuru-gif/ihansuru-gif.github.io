@@ -1,6 +1,7 @@
 package com.ihansuru.greetingtodo;
 
 import android.content.Context;
+import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.PixelFormat;
 import android.graphics.Rect;
@@ -69,7 +70,14 @@ final class OverlayManager {
                 p.x = clamp(Math.round(Prefs.todoX(app) * screen[0] - todoWidth / 2f), 0, Math.max(0, screen[0] - todoWidth));
                 p.y = clamp(Math.round(Prefs.todoY(app) * screen[1] - todoHeight / 2f), 0, Math.max(0, screen[1] - todoHeight));
                 p.setTitle("GreetingTodoOverlay");
+
+                todo.setEditTapListener(() -> openTodoEditor(app));
+                todo.setCompleteListener(index -> {
+                    Prefs.completeItem(app, index);
+                    refreshTodoOverlay(app, screen);
+                });
                 if (Prefs.tapDismiss(app)) todo.setHeaderTapListener(() -> hide(app));
+
                 wm.addView(todo, p);
                 todoView = todo;
                 todoAdded = true;
@@ -85,6 +93,31 @@ final class OverlayManager {
         hideTask = () -> hide(app);
         MAIN.postDelayed(hideTask, duration);
         return true;
+    }
+
+    private static void openTodoEditor(Context app) {
+        hide(app);
+        try {
+            Intent edit = new Intent(app, TodoQuickEditActivity.class)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            app.startActivity(edit);
+        } catch (RuntimeException ignored) {}
+    }
+
+    private static void refreshTodoOverlay(Context app, int[] screen) {
+        if (todoView == null || windowManager == null) return;
+        try {
+            WindowManager.LayoutParams p = (WindowManager.LayoutParams) todoView.getLayoutParams();
+            int width = p.width;
+            todoView.refresh();
+            todoView.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+                    View.MeasureSpec.makeMeasureSpec(screen[1], View.MeasureSpec.AT_MOST));
+            p.height = Math.min(todoView.getMeasuredHeight(), screen[1] - dp(app, 20));
+            p.x = clamp(p.x, 0, Math.max(0, screen[0] - width));
+            p.y = clamp(p.y, 0, Math.max(0, screen[1] - p.height));
+            windowManager.updateViewLayout(todoView, p);
+            todoView.invalidate();
+        } catch (RuntimeException ignored) {}
     }
 
     static void hide(Context context) {
@@ -137,9 +170,7 @@ final class OverlayManager {
         return new int[]{Math.max(1, w), Math.max(1, h)};
     }
 
-    private static float dpStatic(int sw, int sh, int value) {
-        return Math.min(sw, sh) / 360f * value;
-    }
+    private static float dpStatic(int sw, int sh, int value) { return Math.min(sw, sh) / 360f * value; }
 
     private static int[] screenSize(Context c, WindowManager wm) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {

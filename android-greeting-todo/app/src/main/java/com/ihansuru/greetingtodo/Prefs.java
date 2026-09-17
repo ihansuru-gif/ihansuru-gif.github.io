@@ -16,6 +16,7 @@ final class Prefs {
     private static final String NAME = "greeting_todo_settings";
     private static final String DIRECT_NAME = "greeting_todo_direct";
     private static final String SEP = "__GT_SEP__";
+    private static final String KEY_TODO_INITIALIZED = "todo_initialized";
 
     private Prefs() {}
 
@@ -70,18 +71,32 @@ final class Prefs {
     static int todoColor(Context c) { return Color.HSVToColor(new float[]{hue(c), saturation(c) / 100f, .98f}); }
 
     static List<String> items(Context c) {
-        String raw = normal(c).getString("todo_items", null);
-        if (raw == null || raw.isEmpty()) return new ArrayList<>(Arrays.asList("자료 조사하기", "메일 답장하기", "운동하기", "저녁 약속 준비"));
+        SharedPreferences p = normal(c);
+        String raw = p.getString("todo_items", null);
+        boolean initialized = p.getBoolean(KEY_TODO_INITIALIZED, false);
+        if (!initialized && (raw == null || raw.isEmpty())) {
+            return new ArrayList<>(Arrays.asList("자료 조사하기", "메일 답장하기", "운동하기", "저녁 약속 준비"));
+        }
+        if (raw == null || raw.isEmpty()) return new ArrayList<>();
         return split(raw);
     }
+
     static List<String> categories(Context c) {
-        String raw = normal(c).getString("todo_categories", null);
-        List<String> out = raw == null ? new ArrayList<>(Arrays.asList("업무", "업무", "개인", "개인")) : split(raw);
+        SharedPreferences p = normal(c);
+        String raw = p.getString("todo_categories", null);
+        boolean initialized = p.getBoolean(KEY_TODO_INITIALIZED, false);
+        List<String> out;
+        if (!initialized && (raw == null || raw.isEmpty())) {
+            out = new ArrayList<>(Arrays.asList("업무", "업무", "개인", "개인"));
+        } else {
+            out = raw == null || raw.isEmpty() ? new ArrayList<>() : split(raw);
+        }
         int size = items(c).size();
         while (out.size() < size) out.add("업무");
         while (out.size() > size) out.remove(out.size() - 1);
         return out;
     }
+
     static void setItems(Context c, List<String> items, List<String> categories) {
         ArrayList<String> a = new ArrayList<>();
         ArrayList<String> b = new ArrayList<>();
@@ -93,13 +108,24 @@ final class Prefs {
             if (!"개인".equals(cat) && !"기타".equals(cat)) cat = "업무";
             b.add(cat);
         }
-        if (a.isEmpty()) { a.add("오늘 할 일"); b.add("업무"); }
-        int mask = checkedMask(c);
-        int valid = a.size() >= 31 ? -1 : (1 << a.size()) - 1;
-        normal(c).edit().putString("todo_items", join(a)).putString("todo_categories", join(b)).putInt("checked", mask & valid).apply();
+        normal(c).edit()
+                .putBoolean(KEY_TODO_INITIALIZED, true)
+                .putString("todo_items", join(a))
+                .putString("todo_categories", join(b))
+                .putInt("checked", 0)
+                .apply();
     }
 
-    static int checkedMask(Context c) { return normal(c).getInt("checked", 3); }
+    static void completeItem(Context c, int index) {
+        ArrayList<String> currentItems = new ArrayList<>(items(c));
+        ArrayList<String> currentCategories = new ArrayList<>(categories(c));
+        if (index < 0 || index >= currentItems.size()) return;
+        currentItems.remove(index);
+        if (index < currentCategories.size()) currentCategories.remove(index);
+        setItems(c, currentItems, currentCategories);
+    }
+
+    static int checkedMask(Context c) { return normal(c).getInt("checked", 0); }
     static boolean checked(Context c, int i) { return i >= 0 && i < 31 && (checkedMask(c) & (1 << i)) != 0; }
     static void toggleChecked(Context c, int i) {
         if (i < 0 || i >= 31) return;
