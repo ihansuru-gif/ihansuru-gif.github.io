@@ -74,7 +74,8 @@ public class MainActivity extends Activity {
         TextView title = text("인사앱", 29, true, Color.rgb(25, 38, 61));
         root.addView(title);
         TextView subtitle = text("화면을 켜면 내가 정한 이미지와 투두가 잠깐 나타나요", 13, false, Color.rgb(104, 116, 136));
-        LinearLayout.LayoutParams subLp = wrap(); subLp.setMargins(0, dp(4), 0, dp(18));
+        LinearLayout.LayoutParams subLp = wrap();
+        subLp.setMargins(0, dp(4), 0, dp(18));
         root.addView(subtitle, subLp);
 
         LinearLayout modeCard = card();
@@ -85,10 +86,15 @@ public class MainActivity extends Activity {
         imageMode = radio("이미지");
         todoMode = radio("투두");
         bothMode = radio("이미지 + 투두 둘 다");
-        modes.addView(imageMode); modes.addView(todoMode); modes.addView(bothMode);
+        modes.addView(imageMode);
+        modes.addView(todoMode);
+        modes.addView(bothMode);
         modeCard.addView(modes, matchWrap(dp(8), 0));
+
+        Button todoEdit = softButton("투두 내용 수정");
+        modeCard.addView(todoEdit, buttonLp(dp(10)));
         Button edit = primary("화면 편집");
-        modeCard.addView(edit, buttonLp(dp(10)));
+        modeCard.addView(edit, buttonLp(dp(8)));
         root.addView(modeCard, cardLp(0));
 
         LinearLayout imageCard = card();
@@ -160,27 +166,38 @@ public class MainActivity extends Activity {
             else Prefs.setMode(this, Prefs.MODE_BOTH);
             updateImageCardVisibility(imageCard);
         });
+        todoEdit.setOnClickListener(v -> startActivity(new Intent(this, TodoQuickEditActivity.class)));
         edit.setOnClickListener(v -> startActivity(new Intent(this, EditorActivity.class)));
         choose.setOnClickListener(v -> pickImage());
         permission.setOnClickListener(v -> openOverlayPermission());
         preview.setOnClickListener(v -> showPreview());
-        tapDismiss.setOnCheckedChangeListener((b, checked) -> { if (!syncing) Prefs.setTapDismiss(this, checked); });
+        tapDismiss.setOnCheckedChangeListener((b, checked) -> {
+            if (!syncing) Prefs.setTapDismiss(this, checked);
+        });
         enabled.setOnCheckedChangeListener((b, checked) -> {
             if (syncing) return;
             if (checked && !readyToEnable()) {
-                syncing = true; enabled.setChecked(false); syncing = false;
+                syncing = true;
+                enabled.setChecked(false);
+                syncing = false;
                 return;
             }
             Prefs.setEnabled(this, checked);
-            if (checked) { startWakeService(); requestNotificationPermission(); }
-            else stopWakeService();
+            if (checked) {
+                startWakeService();
+                requestNotificationPermission();
+            } else {
+                stopWakeService();
+            }
         });
         durationSeek.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-            @Override public void onProgressChanged(SeekBar bar, int progress, boolean fromUser) {
+            @Override
+            public void onProgressChanged(SeekBar bar, int progress, boolean fromUser) {
                 long ms = 500L + progress * 100L;
                 durationValue.setText(String.format(java.util.Locale.KOREAN, "%.1f초", ms / 1000f));
                 if (fromUser) Prefs.setDuration(MainActivity.this, ms);
             }
+
             @Override public void onStartTrackingTouch(SeekBar bar) {}
             @Override public void onStopTrackingTouch(SeekBar bar) {}
         });
@@ -252,7 +269,9 @@ public class MainActivity extends Activity {
             if (ImageStore.importUri(this, uri)) {
                 refreshImagePreview();
                 toast("이미지를 저장했어요");
-            } else toast("이 이미지는 사용할 수 없어요");
+            } else {
+                toast("이 이미지는 사용할 수 없어요");
+            }
         }
     }
 
@@ -267,18 +286,24 @@ public class MainActivity extends Activity {
     private void startWakeService() {
         Intent i = new Intent(this, WakeService.class).setAction(WakeService.ACTION_START);
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(i); else startService(i);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(i);
+            else startService(i);
         } catch (RuntimeException e) {
             Prefs.setEnabled(this, false);
         }
     }
+
     private void stopWakeService() {
         Prefs.setEnabled(this, false);
-        try { stopService(new Intent(this, WakeService.class)); } catch (RuntimeException ignored) {}
+        try {
+            stopService(new Intent(this, WakeService.class));
+        } catch (RuntimeException ignored) {}
         OverlayManager.hide(this);
     }
+
     private void requestNotificationPermission() {
-        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+        if (Build.VERSION.SDK_INT >= 33
+                && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, NOTIFICATION_PERMISSION);
         }
     }
@@ -291,27 +316,95 @@ public class MainActivity extends Activity {
         v.setElevation(dp(1));
         return v;
     }
+
     private LinearLayout.LayoutParams cardLp(int top) {
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        lp.setMargins(0, top, 0, 0); return lp;
+        lp.setMargins(0, top, 0, 0);
+        return lp;
     }
+
     private LinearLayout.LayoutParams matchWrap(int top, int bottom) {
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        lp.setMargins(0, top, 0, bottom); return lp;
+        lp.setMargins(0, top, 0, bottom);
+        return lp;
     }
+
     private LinearLayout.LayoutParams matchHeight(int top, int h) {
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, h);
-        lp.setMargins(0, top, 0, 0); return lp;
+        lp.setMargins(0, top, 0, 0);
+        return lp;
     }
-    private LinearLayout.LayoutParams wrap() { return new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT); }
-    private LinearLayout.LayoutParams buttonLp(int top) { LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(50)); lp.setMargins(0, top, 0, 0); return lp; }
-    private TextView caption(String s) { return text(s, 12.5f, false, Color.rgb(112, 123, 142)); }
-    private TextView text(String s, float size, boolean bold, int color) { TextView t = new TextView(this); t.setText(s); t.setTextSize(size); t.setTextColor(color); if (bold) t.setTypeface(Typeface.DEFAULT, Typeface.BOLD); return t; }
-    private RadioButton radio(String s) { RadioButton b = new RadioButton(this); b.setText(s); b.setTextSize(15); b.setTextColor(dark()); b.setMinHeight(dp(46)); return b; }
-    private Button primary(String s) { Button b = new Button(this); b.setText(s); b.setTextSize(15); b.setTextColor(Color.WHITE); b.setAllCaps(false); GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, new int[]{Color.rgb(53, 155, 255), Color.rgb(122, 111, 255)}); g.setCornerRadius(dp(16)); b.setBackground(g); return b; }
-    private Button softButton(String s) { Button b = new Button(this); b.setText(s); b.setTextSize(13); b.setTextColor(dark()); b.setAllCaps(false); b.setBackground(rounded(Color.rgb(246, 248, 252), dp(14), Color.rgb(226, 232, 241), 1)); return b; }
-    private View divider() { View v = new View(this); v.setBackgroundColor(Color.rgb(235, 238, 244)); return v; }
-    private GradientDrawable rounded(int color, float radius, int stroke, int strokeWidth) { GradientDrawable g = new GradientDrawable(); g.setColor(color); g.setCornerRadius(radius); if (strokeWidth > 0) g.setStroke(strokeWidth, stroke); return g; }
+
+    private LinearLayout.LayoutParams wrap() {
+        return new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+    }
+
+    private LinearLayout.LayoutParams buttonLp(int top) {
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(50));
+        lp.setMargins(0, top, 0, 0);
+        return lp;
+    }
+
+    private TextView caption(String s) {
+        return text(s, 12.5f, false, Color.rgb(112, 123, 142));
+    }
+
+    private TextView text(String s, float size, boolean bold, int color) {
+        TextView t = new TextView(this);
+        t.setText(s);
+        t.setTextSize(size);
+        t.setTextColor(color);
+        if (bold) t.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        return t;
+    }
+
+    private RadioButton radio(String s) {
+        RadioButton b = new RadioButton(this);
+        b.setText(s);
+        b.setTextSize(15);
+        b.setTextColor(dark());
+        b.setMinHeight(dp(46));
+        return b;
+    }
+
+    private Button primary(String s) {
+        Button b = new Button(this);
+        b.setText(s);
+        b.setTextSize(15);
+        b.setTextColor(Color.WHITE);
+        b.setAllCaps(false);
+        GradientDrawable g = new GradientDrawable(
+                GradientDrawable.Orientation.LEFT_RIGHT,
+                new int[]{Color.rgb(53, 155, 255), Color.rgb(122, 111, 255)});
+        g.setCornerRadius(dp(16));
+        b.setBackground(g);
+        return b;
+    }
+
+    private Button softButton(String s) {
+        Button b = new Button(this);
+        b.setText(s);
+        b.setTextSize(13);
+        b.setTextColor(dark());
+        b.setAllCaps(false);
+        b.setBackground(rounded(Color.rgb(246, 248, 252), dp(14), Color.rgb(226, 232, 241), 1));
+        return b;
+    }
+
+    private View divider() {
+        View v = new View(this);
+        v.setBackgroundColor(Color.rgb(235, 238, 244));
+        return v;
+    }
+
+    private GradientDrawable rounded(int color, float radius, int stroke, int strokeWidth) {
+        GradientDrawable g = new GradientDrawable();
+        g.setColor(color);
+        g.setCornerRadius(radius);
+        if (strokeWidth > 0) g.setStroke(strokeWidth, stroke);
+        return g;
+    }
+
     private int dark() { return Color.rgb(42, 54, 75); }
     private int dp(float v) { return Math.round(v * getResources().getDisplayMetrics().density); }
     private void toast(String s) { Toast.makeText(this, s, Toast.LENGTH_SHORT).show(); }
