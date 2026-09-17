@@ -34,6 +34,7 @@ import android.widget.ScrollView;
 import android.widget.SeekBar;
 import android.widget.Spinner;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
@@ -52,9 +53,16 @@ public class LockOverlayActivity extends Activity {
     private FrameLayout root;
     private GestureFrame todoFrame;
     private GestureFrame imageFrame;
+    private GestureFrame memoFrame;
     private LockTodoWidget todoWidget;
+    private MemoBoardView memoBoard;
     private ImageView imageView;
     private Bitmap imageBitmap;
+
+    private LinearLayout tabRail;
+    private TextView todoTab;
+    private TextView memoTab;
+    private TextView imageTab;
 
     private LinearLayout editToolbar;
     private LinearLayout detailPanel;
@@ -69,7 +77,6 @@ public class LockOverlayActivity extends Activity {
 
     static boolean launch(Context context) {
         Context app = context.getApplicationContext();
-        if (Prefs.showImage(app) && !ImageStore.has(app)) return false;
         Intent intent = new Intent(app, LockOverlayActivity.class)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
                         | Intent.FLAG_ACTIVITY_SINGLE_TOP
@@ -160,11 +167,14 @@ public class LockOverlayActivity extends Activity {
     }
 
     private void buildObjects() {
-        if (Prefs.showImage(this)) buildImageObject();
-        if (Prefs.showTodo(this)) buildTodoObject();
+        if (Prefs.todoExpanded(this)) buildTodoObject();
+        if (Prefs.imageExpanded(this) && ImageStore.has(this)) buildImageObject();
+        if (Prefs.memoEnabled(this) && Prefs.memoExpanded(this)) buildMemoObject();
+        buildTabRail();
     }
 
     private void buildImageObject() {
+        if (imageFrame != null) return;
         imageBitmap = ImageStore.load(this, 2400);
         if (imageBitmap == null) return;
 
@@ -188,6 +198,7 @@ public class LockOverlayActivity extends Activity {
     }
 
     private void buildTodoObject() {
+        if (todoFrame != null) return;
         todoFrame = new GestureFrame(this, GestureFrame.KIND_TODO);
         todoFrame.setGestureListener(new GestureFrame.GestureListener() {
             @Override public void onGestureStart(int kind) { pause("gesture"); }
@@ -225,12 +236,182 @@ public class LockOverlayActivity extends Activity {
         root.addView(todoFrame);
     }
 
+    private void buildMemoObject() {
+        if (memoFrame != null || !Prefs.memoEnabled(this)) return;
+
+        memoFrame = new GestureFrame(this, GestureFrame.KIND_MEMO);
+        memoFrame.setGestureListener(new GestureFrame.GestureListener() {
+            @Override public void onGestureStart(int kind) { pause("gesture"); }
+            @Override public void onGestureEnd(int kind, int startW, int startH) {
+                persistMemoGesture();
+                resume("gesture");
+            }
+        });
+
+        memoBoard = new MemoBoardView(this);
+        memoBoard.setCallback(new MemoBoardView.Callback() {
+            @Override public void onGear() { enterDirectEdit(); }
+            @Override public void onInteractionChanged(boolean active) {
+                if (active) pause("memo_interaction");
+                else resume("memo_interaction");
+            }
+        });
+
+        memoFrame.addView(memoBoard, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT));
+        root.addView(memoFrame);
+    }
+
+    private void buildTabRail() {
+        if (tabRail != null) return;
+
+        tabRail = new LinearLayout(this);
+        tabRail.setOrientation(LinearLayout.VERTICAL);
+        tabRail.setGravity(Gravity.CENTER_HORIZONTAL);
+        tabRail.setPadding(dp(4), dp(6), dp(4), dp(6));
+        tabRail.setBackground(rounded(
+                Color.argb(220, 255, 255, 255),
+                dp(18),
+                Color.argb(70, 90, 102, 130),
+                dp(1)));
+        tabRail.setElevation(dp(14));
+
+        todoTab = sideTab("✓\n투두");
+        memoTab = sideTab("✎\n메모");
+        imageTab = sideTab("▧\n이미지");
+
+        tabRail.addView(todoTab, new LinearLayout.LayoutParams(dp(52), dp(62)));
+        LinearLayout.LayoutParams memoLp = new LinearLayout.LayoutParams(dp(52), dp(62));
+        memoLp.setMargins(0, dp(5), 0, 0);
+        tabRail.addView(memoTab, memoLp);
+        LinearLayout.LayoutParams imageLp = new LinearLayout.LayoutParams(dp(52), dp(62));
+        imageLp.setMargins(0, dp(5), 0, 0);
+        tabRail.addView(imageTab, imageLp);
+
+        FrameLayout.LayoutParams railLp = new FrameLayout.LayoutParams(
+                dp(60), ViewGroup.LayoutParams.WRAP_CONTENT,
+                Gravity.END | Gravity.CENTER_VERTICAL);
+        railLp.setMargins(0, 0, dp(2), 0);
+        root.addView(tabRail, railLp);
+        tabRail.bringToFront();
+
+        todoTab.setOnClickListener(v -> toggleTodo());
+        memoTab.setOnClickListener(v -> toggleMemo());
+        imageTab.setOnClickListener(v -> toggleImage());
+
+        todoTab.setOnLongClickListener(v -> { ensureTodoVisible(); enterDirectEdit(); return true; });
+        memoTab.setOnLongClickListener(v -> { ensureMemoVisible(); enterDirectEdit(); return true; });
+        imageTab.setOnLongClickListener(v -> {
+            if (ImageStore.has(this)) { ensureImageVisible(); enterDirectEdit(); }
+            return true;
+        });
+
+        memoTab.setVisibility(Prefs.memoEnabled(this) ? View.VISIBLE : View.GONE);
+        updateTabStates();
+    }
+
+    private TextView sideTab(String label) {
+        TextView v = new TextView(this);
+        v.setText(label);
+        v.setTextSize(11.5f);
+        v.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        v.setTextColor(Color.rgb(62, 72, 95));
+        v.setGravity(Gravity.CENTER);
+        v.setBackground(rounded(
+                Color.rgb(248, 246, 255),
+                dp(14),
+                Color.rgb(219, 214, 239),
+                dp(1)));
+        v.setElevation(dp(2));
+        return v;
+    }
+
+    private void toggleTodo() {
+        if (todoFrame == null) {
+            buildTodoObject();
+            if (root.getWidth() > 0) layoutTodoFrame(true);
+            todoFrame.setVisibility(View.VISIBLE);
+        } else {
+            todoFrame.setVisibility(todoFrame.getVisibility() == View.VISIBLE ? View.GONE : View.VISIBLE);
+        }
+        Prefs.setTodoExpanded(this, todoFrame != null && todoFrame.getVisibility() == View.VISIBLE);
+        updateTabStates();
+        if (tabRail != null) tabRail.bringToFront();
+    }
+
+    private void toggleMemo() {
+        if (!Prefs.memoEnabled(this)) return;
+        if (memoFrame == null) {
+            buildMemoObject();
+            if (root.getWidth() > 0) layoutMemoFrame(true);
+            if (memoFrame != null) memoFrame.setVisibility(View.VISIBLE);
+        } else {
+            memoFrame.setVisibility(memoFrame.getVisibility() == View.VISIBLE ? View.GONE : View.VISIBLE);
+        }
+        Prefs.setMemoExpanded(this, memoFrame != null && memoFrame.getVisibility() == View.VISIBLE);
+        updateTabStates();
+        if (tabRail != null) tabRail.bringToFront();
+    }
+
+    private void toggleImage() {
+        if (!ImageStore.has(this)) {
+            Toast.makeText(this, "앱에서 이미지를 먼저 선택해 주세요", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (imageFrame == null) {
+            buildImageObject();
+            if (root.getWidth() > 0) layoutImageFrame(true);
+            if (imageFrame != null) imageFrame.setVisibility(View.VISIBLE);
+        } else {
+            imageFrame.setVisibility(imageFrame.getVisibility() == View.VISIBLE ? View.GONE : View.VISIBLE);
+        }
+        Prefs.setImageExpanded(this, imageFrame != null && imageFrame.getVisibility() == View.VISIBLE);
+        updateTabStates();
+        if (tabRail != null) tabRail.bringToFront();
+    }
+
+    private void ensureTodoVisible() {
+        if (todoFrame == null) buildTodoObject();
+        if (root.getWidth() > 0) layoutTodoFrame(true);
+        if (todoFrame != null) todoFrame.setVisibility(View.VISIBLE);
+        Prefs.setTodoExpanded(this, true);
+        updateTabStates();
+    }
+
+    private void ensureMemoVisible() {
+        if (memoFrame == null) buildMemoObject();
+        if (root.getWidth() > 0) layoutMemoFrame(true);
+        if (memoFrame != null) memoFrame.setVisibility(View.VISIBLE);
+        Prefs.setMemoExpanded(this, true);
+        updateTabStates();
+    }
+
+    private void ensureImageVisible() {
+        if (imageFrame == null) buildImageObject();
+        if (root.getWidth() > 0) layoutImageFrame(true);
+        if (imageFrame != null) imageFrame.setVisibility(View.VISIBLE);
+        Prefs.setImageExpanded(this, true);
+        updateTabStates();
+    }
+
+    private void updateTabStates() {
+        if (todoTab != null) todoTab.setAlpha(todoFrame != null && todoFrame.getVisibility() == View.VISIBLE ? 1f : .55f);
+        if (memoTab != null) memoTab.setAlpha(memoFrame != null && memoFrame.getVisibility() == View.VISIBLE ? 1f : .55f);
+        if (imageTab != null) {
+            imageTab.setAlpha(imageFrame != null && imageFrame.getVisibility() == View.VISIBLE ? 1f : .45f);
+            imageTab.setEnabled(ImageStore.has(this));
+        }
+    }
+
     private void layoutObjects() {
         if (root.getWidth() <= 0 || root.getHeight() <= 0) return;
         if (imageFrame != null) layoutImageFrame(true);
         if (todoFrame != null) layoutTodoFrame(true);
+        if (memoFrame != null) layoutMemoFrame(true);
         if (editToolbar != null) editToolbar.bringToFront();
         if (detailPanel != null) detailPanel.bringToFront();
+        if (tabRail != null) tabRail.bringToFront();
     }
 
     private void layoutImageFrame(boolean fromPrefs) {
@@ -272,11 +453,20 @@ public class LockOverlayActivity extends Activity {
                 Math.round(sw * .96f));
 
         todoWidget.refresh();
-        todoWidget.measure(
-                View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
-                View.MeasureSpec.makeMeasureSpec(Math.round(sh * .86f), View.MeasureSpec.AT_MOST));
+        int storedHeight = Prefs.todoHeight(this);
+        int height;
+        if (storedHeight > 0) {
+            height = clamp(Math.round(sh * storedHeight / 100f), dp(170), Math.round(sh * .90f));
+            todoWidget.measure(
+                    View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+                    View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY));
+        } else {
+            todoWidget.measure(
+                    View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+                    View.MeasureSpec.makeMeasureSpec(Math.round(sh * .86f), View.MeasureSpec.AT_MOST));
+            height = Math.min(todoWidget.getMeasuredHeight(), Math.round(sh * .86f));
+        }
 
-        int height = Math.min(todoWidget.getMeasuredHeight(), Math.round(sh * .86f));
         todoFrame.setLayoutParams(new FrameLayout.LayoutParams(width, Math.max(dp(170), height)));
         todoWidget.setLayoutParams(new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -284,6 +474,35 @@ public class LockOverlayActivity extends Activity {
 
         if (fromPrefs) placeByCenter(todoFrame, Prefs.todoX(this), Prefs.todoY(this));
         else clampPosition(todoFrame);
+    }
+
+    private void layoutMemoFrame(boolean fromPrefs) {
+        int sw = root.getWidth();
+        int sh = root.getHeight();
+        if (sw <= 0 || sh <= 0 || memoFrame == null || memoBoard == null) return;
+
+        int width = clamp(Math.round(sw * Prefs.memoWidth(this) / 100f), dp(220), Math.round(sw * .96f));
+        int height = clamp(Math.round(sh * Prefs.memoHeight(this) / 100f), dp(230), Math.round(sh * .88f));
+
+        memoFrame.setLayoutParams(new FrameLayout.LayoutParams(width, height));
+        memoBoard.setLayoutParams(new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT));
+        memoBoard.refreshScale();
+
+        if (fromPrefs) placeByCenter(memoFrame, Prefs.memoX(this), Prefs.memoY(this));
+        else clampPosition(memoFrame);
+    }
+
+    private void refreshMemoKeepingCenter() {
+        if (memoFrame == null || root.getWidth() <= 0 || root.getHeight() <= 0) return;
+        float cx = centerX(memoFrame) / root.getWidth();
+        float cy = centerY(memoFrame) / root.getHeight();
+        boolean editing = memoFrame.isEditing();
+        layoutMemoFrame(false);
+        placeByCenter(memoFrame, cx, cy);
+        memoFrame.setEditing(editing);
+        if (tabRail != null) tabRail.bringToFront();
     }
 
     private void refreshTodoKeepingCenter() {
@@ -298,6 +517,7 @@ public class LockOverlayActivity extends Activity {
         todoFrame.setEditing(wasEditing);
         if (editToolbar != null) editToolbar.bringToFront();
         if (detailPanel != null) detailPanel.bringToFront();
+        if (tabRail != null) tabRail.bringToFront();
     }
 
     private void placeByCenter(View view, float nx, float ny) {
@@ -322,13 +542,8 @@ public class LockOverlayActivity extends Activity {
         float cy = centerY(todoFrame) / root.getHeight();
 
         int widthPct = Math.round(todoFrame.getWidth() * 100f / root.getWidth());
-        Prefs.setTodoWidth(this, widthPct);
-
-        if (startH > 0 && todoFrame.getHeight() > 0 && todoFrame.getHeight() != startH) {
-            float ratio = todoFrame.getHeight() / (float) startH;
-            Prefs.setTodoScale(this, Prefs.todoScale(this) * ratio);
-        }
-
+        int heightPct = Math.round(todoFrame.getHeight() * 100f / root.getHeight());
+        Prefs.setTodoSize(this, widthPct, heightPct);
         Prefs.setTodoPosition(this, cx, cy);
 
         boolean editing = todoFrame.isEditing();
@@ -364,14 +579,35 @@ public class LockOverlayActivity extends Activity {
                 centerY(imageFrame) / root.getHeight());
     }
 
+    private void persistMemoGesture() {
+        if (memoFrame == null || root.getWidth() <= 0 || root.getHeight() <= 0) return;
+
+        float cx = centerX(memoFrame) / root.getWidth();
+        float cy = centerY(memoFrame) / root.getHeight();
+        int widthPct = Math.round(memoFrame.getWidth() * 100f / root.getWidth());
+        int heightPct = Math.round(memoFrame.getHeight() * 100f / root.getHeight());
+
+        Prefs.setMemoSize(this, widthPct, heightPct);
+        Prefs.setMemoPosition(this, cx, cy);
+
+        boolean editing = memoFrame.isEditing();
+        layoutMemoFrame(false);
+        placeByCenter(memoFrame, cx, cy);
+        memoFrame.setEditing(editing);
+        Prefs.setMemoPosition(this,
+                centerX(memoFrame) / root.getWidth(),
+                centerY(memoFrame) / root.getHeight());
+    }
+
     private void enterDirectEdit() {
         if (directEditing) return;
         directEditing = true;
         pause("direct_edit");
 
         if (todoWidget != null) todoWidget.clearInputFocus();
-        if (todoFrame != null) todoFrame.setEditing(true);
-        if (imageFrame != null) imageFrame.setEditing(true);
+        if (todoFrame != null && todoFrame.getVisibility() == View.VISIBLE) todoFrame.setEditing(true);
+        if (imageFrame != null && imageFrame.getVisibility() == View.VISIBLE) imageFrame.setEditing(true);
+        if (memoFrame != null && memoFrame.getVisibility() == View.VISIBLE) memoFrame.setEditing(true);
 
         buildEditToolbar();
     }
@@ -391,7 +627,7 @@ public class LockOverlayActivity extends Activity {
         editToolbar.setElevation(dp(16));
 
         TextView hint = label(
-                "직접 편집 · 끌어 이동 · 모서리 ↘ 크기",
+                "직접 편집 · 끌어 이동 · 모서리 잡아당김 · 두 손가락 확대/축소",
                 12.5f,
                 true,
                 Color.rgb(54, 66, 88));
@@ -429,6 +665,7 @@ public class LockOverlayActivity extends Activity {
 
         if (todoFrame != null) todoFrame.setEditing(false);
         if (imageFrame != null) imageFrame.setEditing(false);
+        if (memoFrame != null) memoFrame.setEditing(false);
 
         directEditing = false;
         hideKeyboard();
@@ -812,6 +1049,7 @@ public class LockOverlayActivity extends Activity {
     private static final class GestureFrame extends FrameLayout {
         static final int KIND_TODO = 1;
         static final int KIND_IMAGE = 2;
+        static final int KIND_MEMO = 3;
 
         private static final int RESIZE_NONE = 0;
         private static final int RESIZE_TL = 1;
@@ -830,8 +1068,10 @@ public class LockOverlayActivity extends Activity {
 
         private final int kind;
         private GestureListener listener;
+        private final android.view.ScaleGestureDetector scaleDetector;
 
         private boolean editing;
+        private boolean scaling;
         private int resizeCorner = RESIZE_NONE;
 
         private float downRawX;
@@ -848,6 +1088,26 @@ public class LockOverlayActivity extends Activity {
             setClipChildren(false);
             setClipToPadding(false);
             setClickable(true);
+            scaleDetector = new android.view.ScaleGestureDetector(context,
+                    new android.view.ScaleGestureDetector.SimpleOnScaleGestureListener() {
+                        @Override public boolean onScaleBegin(android.view.ScaleGestureDetector detector) {
+                            if (!editing) return false;
+                            scaling = true;
+                            return true;
+                        }
+
+                        @Override public boolean onScale(android.view.ScaleGestureDetector detector) {
+                            if (!editing) return false;
+                            float factor = detector.getScaleFactor();
+                            if (Float.isNaN(factor) || Float.isInfinite(factor)) return false;
+                            resizeAroundCenter(factor);
+                            return true;
+                        }
+
+                        @Override public void onScaleEnd(android.view.ScaleGestureDetector detector) {
+                            scaling = false;
+                        }
+                    });
         }
 
         void setGestureListener(GestureListener value) { listener = value; }
@@ -867,6 +1127,16 @@ public class LockOverlayActivity extends Activity {
         @Override
         public boolean onTouchEvent(MotionEvent event) {
             if (!editing) return super.onTouchEvent(event);
+
+            scaleDetector.onTouchEvent(event);
+            if (event.getPointerCount() > 1 || scaling) {
+                if (event.getActionMasked() == MotionEvent.ACTION_UP
+                        || event.getActionMasked() == MotionEvent.ACTION_CANCEL) {
+                    if (listener != null) listener.onGestureEnd(kind, startW, startH);
+                    scaling = false;
+                }
+                return true;
+            }
 
             switch (event.getActionMasked()) {
                 case MotionEvent.ACTION_DOWN:
@@ -898,7 +1168,7 @@ public class LockOverlayActivity extends Activity {
         }
 
         private int detectResizeCorner(float x, float y) {
-            float hit = dpLocal(58);
+            float hit = dpLocal(72);
             boolean left = x <= hit;
             boolean right = x >= getWidth() - hit;
             boolean top = y <= hit;
@@ -931,8 +1201,8 @@ public class LockOverlayActivity extends Activity {
             int parentW = Math.max(1, parent.getWidth());
             int parentH = Math.max(1, parent.getHeight());
 
-            int minW = dpLocal(kind == KIND_TODO ? 220 : 64);
-            int minH = dpLocal(kind == KIND_TODO ? 170 : 64);
+            int minW = dpLocal(kind == KIND_IMAGE ? 64 : 220);
+            int minH = dpLocal(kind == KIND_IMAGE ? 64 : kind == KIND_MEMO ? 230 : 170);
 
             boolean fromLeft = resizeCorner == RESIZE_TL || resizeCorner == RESIZE_BL;
             boolean fromTop = resizeCorner == RESIZE_TL || resizeCorner == RESIZE_TR;
@@ -969,6 +1239,39 @@ public class LockOverlayActivity extends Activity {
             setLayoutParams(lp);
             setX(newX);
             setY(newY);
+        }
+
+        private void resizeAroundCenter(float factor) {
+            View parent = (View) getParent();
+            if (parent == null || factor <= 0f) return;
+
+            int parentW = Math.max(1, parent.getWidth());
+            int parentH = Math.max(1, parent.getHeight());
+            int minW = dpLocal(kind == KIND_IMAGE ? 64 : 220);
+            int minH = dpLocal(kind == KIND_IMAGE ? 64 : kind == KIND_MEMO ? 230 : 170);
+
+            float cx = getX() + getWidth() / 2f;
+            float cy = getY() + getHeight() / 2f;
+            int newW = clampInt(Math.round(getWidth() * factor), minW, parentW);
+            int newH;
+
+            if (kind == KIND_IMAGE && getWidth() > 0 && getHeight() > 0) {
+                float ratio = getWidth() / (float) getHeight();
+                newH = clampInt(Math.round(newW / ratio), minH, parentH);
+                if (newH >= parentH) {
+                    newH = parentH;
+                    newW = clampInt(Math.round(newH * ratio), minW, parentW);
+                }
+            } else {
+                newH = clampInt(Math.round(getHeight() * factor), minH, parentH);
+            }
+
+            ViewGroup.LayoutParams lp = getLayoutParams();
+            lp.width = newW;
+            lp.height = newH;
+            setLayoutParams(lp);
+            setX(clampLocal(cx - newW / 2f, 0, Math.max(0, parentW - newW)));
+            setY(clampLocal(cy - newH / 2f, 0, Math.max(0, parentH - newH)));
         }
 
         @Override
