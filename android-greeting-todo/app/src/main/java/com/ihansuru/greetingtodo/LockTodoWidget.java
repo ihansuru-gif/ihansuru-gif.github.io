@@ -38,6 +38,8 @@ final class LockTodoWidget extends FrameLayout {
     private final Paint textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Path clipPath = new Path();
     private final ArrayList<RectF> completeRects = new ArrayList<>();
+    private final ArrayList<RectF> categoryRects = new ArrayList<>();
+    private final ArrayList<RectF> rowRects = new ArrayList<>();
     private final RectF gearRect = new RectF();
 
     private EditText quickInput;
@@ -54,6 +56,11 @@ final class LockTodoWidget extends FrameLayout {
     private int cornerRadius;
     private float downX;
     private float downY;
+
+    private Runnable reorderArm;
+    private int pendingReorder = -1;
+    private int activeReorder = -1;
+    private boolean reordering;
 
     LockTodoWidget(Context context) {
         super(context);
@@ -244,6 +251,8 @@ final class LockTodoWidget extends FrameLayout {
         List<String> items = Prefs.items(getContext());
         List<String> categories = Prefs.categories(getContext());
         completeRects.clear();
+        categoryRects.clear();
+        rowRects.clear();
 
         float startY = headerHeight + dp(11 * uiScale);
         float bottomLimit = h - pad - inputHeight - gap;
@@ -263,6 +272,15 @@ final class LockTodoWidget extends FrameLayout {
             float top = startY + i * rowHeight;
             float cy = top + rowHeight * .50f;
             if (top + rowHeight > bottomLimit + dp(4)) break;
+
+            rowRects.add(new RectF(pad, top, w - pad, top + rowHeight));
+
+            if (i == activeReorder && reordering) {
+                paint.setStyle(Paint.Style.FILL);
+                paint.setColor(Color.argb(18, 80, 133, 246));
+                canvas.drawRoundRect(new RectF(pad, top + dp(3), w - pad, top + rowHeight - dp(3)),
+                        dp(10), dp(10), paint);
+            }
 
             if (i > 0) {
                 paint.setStyle(Paint.Style.STROKE);
@@ -289,6 +307,12 @@ final class LockTodoWidget extends FrameLayout {
             drawPill(canvas, pillCx, cy, pillW, category);
             drawCompleteButton(canvas, completeCx, cy, completeSize);
 
+            float pillHalfH = dp(16 * uiScale);
+            categoryRects.add(new RectF(
+                    pillCx - pillW / 2f - dp(4),
+                    cy - pillHalfH,
+                    pillCx + pillW / 2f + dp(4),
+                    cy + pillHalfH));
             completeRects.add(new RectF(
                     completeCx - completeSize * .72f,
                     cy - completeSize * .72f,
@@ -362,32 +386,135 @@ final class LockTodoWidget extends FrameLayout {
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
+        float x = event.getX();
+        float y = event.getY();
+
         if (event.getAction() == MotionEvent.ACTION_DOWN) {
-            downX = event.getX();
-            downY = event.getY();
+            downX = x;
+            downY = y;
+            pendingReorder = hitRow(x, y);
+            if (pendingReorder >= 0
+                    && hitRect(categoryRects, x, y) < 0
+                    && hitRect(completeRects, x, y) < 0
+                    && !gearRect.contains(x, y)) {
+                armReorder(pendingReorder);
+            } else {
+                pendingReorder = -1;
+            }
             return true;
         }
-        if (event.getAction() == MotionEvent.ACTION_UP) {
-            float dx = event.getX() - downX;
-            float dy = event.getY() - downY;
+
+        if (event.getAction() == MotionEvent.ACTION_MOVE) {
+            if (reordering) {
+                int target = hitRowForDrag(y);
+                if (target >= 0 && target != activeReorder) {
+                    Prefs.moveItem(getContext(), activeReorder, target);
+                    activeReorder = target;
+                    invalidate();
+                }
+                return true;
+            }
+            float dx = x - downX;
+            float dy = y - downY;
+            if (dx * dx + dy * dy > dp(10) * dp(10)) cancelReorderArm();
+            return true;
+        }
+
+        if (event.getAction() == MotionEvent.ACTION_UP || event.getAction() == MotionEvent.ACTION_CANCEL) {
+            cancelReorderArm();
+            if (reordering) {
+                finishReorder();
+                performClick();
+                return true;
+            }
+            if (event.getAction() == MotionEvent.ACTION_CANCEL) return true;
+
+            float dx = x - downX;
+            float dy = y - downY;
             if (dx * dx + dy * dy > dp(12) * dp(12)) return true;
 
-            if (gearRect.contains(event.getX(), event.getY())) {
+            if (gearRect.contains(x, y)) {
                 if (callback != null) callback.onGear();
                 performClick();
                 return true;
             }
-            for (int i = 0; i < completeRects.size(); i++) {
-                if (completeRects.get(i).contains(event.getX(), event.getY())) {
-                    if (callback != null) callback.onComplete(i);
-                    performClick();
-                    return true;
-                }
+
+            int categoryIndex = hitRect(categoryRects, x, y);
+            if (categoryIndex >= 0) {
+                Prefs.cycleCategory(getContext(), categoryIndex);
+                refresh();
+                performClick();
+                return true;
             }
+
+            int completeIndex = hitRect(completeRects, x, y);
+            if (completeIndex >= 0) {
+                if (callback != null) callback.onComplete(completeIndex);
+                performClick();
+                return true;
+            }
+
             performClick();
             return true;
         }
         return true;
+    }
+
+    private void armReorder(int index) {
+        cancelReorderArm();
+        reorderArm = () -> {
+            reorderArm = null;
+            if (pendingReorder < 0) return;
+            reordering = true;
+            activeReorder = pendingReorder;
+            if (callback != null) callback.onInteractionChanged(true);
+            invalidate();
+        };
+        postDelayed(reorderArm, 320L);
+    }
+
+    private void cancelReorderArm() {
+        if (reorderArm != null) {
+            removeCallbacks(reorderArm);
+            reorderArm = null;
+        }
+        pendingReorder = -1;
+    }
+
+    private void finishReorder() {
+        reordering = false;
+        activeReorder = -1;
+        pendingReorder = -1;
+        if (callback != null) callback.onInteractionChanged(false);
+        invalidate();
+    }
+
+    private int hitRow(float x, float y) {
+        return hitRect(rowRects, x, y);
+    }
+
+    private int hitRowForDrag(float y) {
+        if (rowRects.isEmpty()) return -1;
+        for (int i = 0; i < rowRects.size(); i++) {
+            RectF rect = rowRects.get(i);
+            if (y >= rect.top && y <= rect.bottom) return i;
+        }
+        if (y < rowRects.get(0).top) return 0;
+        return rowRects.size() - 1;
+    }
+
+    private int hitRect(ArrayList<RectF> rects, float x, float y) {
+        for (int i = 0; i < rects.size(); i++) {
+            if (rects.get(i).contains(x, y)) return i;
+        }
+        return -1;
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        cancelReorderArm();
+        if (reordering) finishReorder();
+        super.onDetachedFromWindow();
     }
 
     @Override
