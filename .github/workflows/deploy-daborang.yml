@@ -75,6 +75,9 @@ jobs:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.deploy }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    outputs:
+      release_tag: ${{ steps.release.outputs.tag }}
+      release_version: ${{ steps.release.outputs.version }}
     permissions:
       contents: read
       pages: write
@@ -108,12 +111,13 @@ jobs:
             --json isDraft,isPrerelease \
             --jq 'if (.isDraft == false and .isPrerelease == false) then "stable" else "blocked" end')
           test "$state" = "stable"
-      - name: Download the three release assets
+      - name: Download release assets
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ steps.release.outputs.tag }}
           VERSION: ${{ steps.release.outputs.version }}
+          PROBE_PADDING_BYTES: ${{ inputs.compat_probe_padding_bytes }}
         run: |
           set -euo pipefail
           mkdir -p incoming
@@ -127,6 +131,9 @@ jobs:
             "Dabolang-${VERSION}-macOS-arm64.zip"
             "Dabolang-${VERSION}-macOS-x64.zip"
           )
+          if [[ -z "$PROBE_PADDING_BYTES" ]]; then
+            assets+=("Dabolang-${VERSION}-Windows-x64.legacy-compat.json")
+          fi
           for asset in "${assets[@]}"; do
             gh release download "$RELEASE_TAG" \
               --repo "$GITHUB_REPOSITORY" \
@@ -138,6 +145,15 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --json body \
             --jq '.body // ""' > incoming/release-notes.txt
+      - name: Require matching legacy compatibility attestation
+        if: ${{ inputs.compat_probe_padding_bytes == '' }}
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: >-
+          node scripts/legacy-compat-attestation.js verify
+          --version "$VERSION"
+          --asset-path "incoming/Dabolang-${VERSION}-Windows-x64.exe"
+          --attestation-path "incoming/Dabolang-${VERSION}-Windows-x64.legacy-compat.json"
       - name: Build verified Pages files
         env:
           RELEASE_TAG: ${{ steps.release.outputs.tag }}
@@ -217,3 +233,148 @@ jobs:
       - name: Deploy GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5
+
+  verify-compat-probe:
+    needs: [build, deploy]
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.deploy && inputs.compat_probe_padding_bytes != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - name: Download the exact probe source
+        id: source
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.build.outputs.release_tag }}
+          PROBE_SOURCE_TAG: ${{ inputs.compat_probe_source_tag }}
+          PROBE_PADDING_BYTES: ${{ inputs.compat_probe_padding_bytes }}
+        run: |
+          set -euo pipefail
+          [[ "$PROBE_PADDING_BYTES" =~ ^[0-9]{1,7}$ ]]
+          test "$PROBE_PADDING_BYTES" -le 1000000
+          source_tag="${PROBE_SOURCE_TAG:-$RELEASE_TAG}"
+          [[ "$source_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]
+          version="${source_tag#v}"
+          asset="Dabolang-${version}-Windows-x64.exe"
+          release_state=$(gh release view "$source_tag" \
+            --repo "$GITHUB_REPOSITORY" \
+            --json isDraft,isPrerelease,tagName,assets \
+            --jq "[.isDraft,.isPrerelease, (.tagName == \"$source_tag\"), ([.assets[].name | select(. == \"$asset\")] | length)] | @tsv")
+          IFS=$'\t' read -r is_draft is_prerelease tag_matches asset_count <<< "$release_state"
+          test "$is_draft" = "false"
+          test "$tag_matches" = "true"
+          test "$asset_count" = "1"
+          if [[ "$PROBE_PADDING_BYTES" = "0" && "$is_prerelease" != "true" ]]; then
+            test "$source_tag" = "v3.5.9-t.68"
+          fi
+          mkdir -p probe-source
+          gh release download "$source_tag" \
+            --repo "$GITHUB_REPOSITORY" \
+            --pattern "$asset" \
+            --dir probe-source
+          source="probe-source/$asset"
+          test -f "$source"
+          test "$(head -c 2 "$source")" = 'MZ'
+          cp "$source" expected-probe.exe
+          source_size=$(stat -c %s "$source")
+          truncate -s "$((source_size + PROBE_PADDING_BYTES))" expected-probe.exe
+          expected_size=$(stat -c %s expected-probe.exe)
+          expected_sha256=$(sha256sum expected-probe.exe | cut -d' ' -f1)
+          if [[ "$PROBE_PADDING_BYTES" = "0" && "$is_prerelease" != "true" ]]; then
+            test "$expected_size" = "93789016"
+            test "$expected_sha256" = "626dc5276af72dc8585a26a05e431b43bb441b468677e506dac4bb403a3ad4ae"
+          fi
+          echo "source_tag=$source_tag" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "asset=$asset" >> "$GITHUB_OUTPUT"
+          echo "is_prerelease=$is_prerelease" >> "$GITHUB_OUTPUT"
+          echo "expected_size=$expected_size" >> "$GITHUB_OUTPUT"
+          echo "expected_sha256=$expected_sha256" >> "$GITHUB_OUTPUT"
+      - name: Verify the deployed Pages probe
+        id: verify
+        shell: bash
+        env:
+          PROBE_PADDING_BYTES: ${{ inputs.compat_probe_padding_bytes }}
+          EXPECTED_SIZE: ${{ steps.source.outputs.expected_size }}
+          EXPECTED_SHA256: ${{ steps.source.outputs.expected_sha256 }}
+        run: |
+          set -euo pipefail
+          pages_url="https://ihansuru-gif.github.io/daborang-jitsi-screen-gallery/compat-probe/Dabolang-compat-probe-p${PROBE_PADDING_BYTES}.exe"
+          verified=false
+          for attempt in $(seq 1 36); do
+            cache_bust="run-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${attempt}-$(date +%s)"
+            request_url="${pages_url}?_=${cache_bust}"
+            rm -f identity.headers gzip.headers downloaded-probe.exe
+            if curl --fail --silent --show-error --location --head \
+                -H 'Accept-Encoding: identity' -H 'Cache-Control: no-cache' \
+                -D identity.headers -o /dev/null "$request_url" && \
+               curl --fail --silent --show-error --location --compressed \
+                -H 'Accept-Encoding: gzip' -H 'Cache-Control: no-cache' \
+                -D gzip.headers -o downloaded-probe.exe "$request_url"; then
+              identity_length=$(awk 'tolower($1)=="content-length:" {gsub("\\r","",$2); value=$2} END {print value}' identity.headers)
+              identity_encoding=$(awk 'tolower($1)=="content-encoding:" {gsub("\\r","",$2); value=tolower($2)} END {print value}' identity.headers)
+              gzip_length=$(awk 'tolower($1)=="content-length:" {gsub("\\r","",$2); value=$2} END {print value}' gzip.headers)
+              gzip_encoding=$(awk 'tolower($1)=="content-encoding:" {gsub("\\r","",$2); value=tolower($2)} END {print value}' gzip.headers)
+              decoded_size=$(stat -c %s downloaded-probe.exe)
+              decoded_sha256=$(sha256sum downloaded-probe.exe | cut -d' ' -f1)
+              mz=$(head -c 2 downloaded-probe.exe || true)
+              if [[ "$identity_length" = "$EXPECTED_SIZE" && ( -z "$identity_encoding" || "$identity_encoding" = "identity" ) && \
+                    "$gzip_length" = "$EXPECTED_SIZE" && "$gzip_encoding" = "gzip" && \
+                    "$decoded_size" = "$EXPECTED_SIZE" && "$decoded_sha256" = "$EXPECTED_SHA256" && "$mz" = "MZ" ]]; then
+                verified=true
+                break
+              fi
+              echo "probe not ready ($attempt/36): identity=${identity_length}/${identity_encoding:-none} gzip=${gzip_length}/${gzip_encoding:-none} decoded=${decoded_size}/${decoded_sha256} mz=${mz:-none}"
+            else
+              echo "probe not reachable yet ($attempt/36)"
+            fi
+            sleep 10
+          done
+          test "$verified" = "true"
+          cmp --silent expected-probe.exe downloaded-probe.exe
+          echo "pages_url=$pages_url" >> "$GITHUB_OUTPUT"
+          echo "gzip_content_length=$gzip_length" >> "$GITHUB_OUTPUT"
+          echo "identity_content_length=$identity_length" >> "$GITHUB_OUTPUT"
+          echo "decoded_size=$decoded_size" >> "$GITHUB_OUTPUT"
+      - name: Create exact-byte compatibility attestation
+        if: ${{ inputs.compat_probe_padding_bytes == '0' }}
+        env:
+          VERSION: ${{ steps.source.outputs.version }}
+          WINDOWS_ASSET: ${{ steps.source.outputs.asset }}
+          PAGES_URL: ${{ steps.verify.outputs.pages_url }}
+          GZIP_CONTENT_LENGTH: ${{ steps.verify.outputs.gzip_content_length }}
+          IDENTITY_CONTENT_LENGTH: ${{ steps.verify.outputs.identity_content_length }}
+          DECODED_SIZE: ${{ steps.verify.outputs.decoded_size }}
+        run: >-
+          node scripts/legacy-compat-attestation.js create
+          --version "$VERSION"
+          --windows-asset "$WINDOWS_ASSET"
+          --asset-path downloaded-probe.exe
+          --pages-url "$PAGES_URL"
+          --gzip-content-length "$GZIP_CONTENT_LENGTH"
+          --identity-content-length "$IDENTITY_CONTENT_LENGTH"
+          --decoded-size "$DECODED_SIZE"
+          --mz true
+          --workflow-run "https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/attempts/${GITHUB_RUN_ATTEMPT}"
+          --output "Dabolang-${VERSION}-Windows-x64.legacy-compat.json"
+      - name: Attach compatibility attestation to the candidate release
+        if: ${{ inputs.compat_probe_padding_bytes == '0' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_TAG: ${{ steps.source.outputs.source_tag }}
+          VERSION: ${{ steps.source.outputs.version }}
+        run: |
+          set -euo pipefail
+          attestation="Dabolang-${VERSION}-Windows-x64.legacy-compat.json"
+          test -f "$attestation"
+          gh release upload "$SOURCE_TAG" "$attestation" \
+            --repo "$GITHUB_REPOSITORY" \
+            --clobber

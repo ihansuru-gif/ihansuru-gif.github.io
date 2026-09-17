@@ -3,24 +3,30 @@
 이 폴더 내용만 `ihansuru-gif/ihansuru-gif.github.io` 공개 저장소 루트에 넣습니다. 앱 소스는 넣지 않습니다.
 
 1. 저장소 **Settings → Pages → Source**를 **GitHub Actions**로 설정합니다.
-2. `v3.5.9-t.64` 형식의 태그로 Release를 만들고 아래 3개 파일을 올린 뒤 공개합니다.
-   - `Dabolang-3.5.9-t.64-Windows-x64.exe`
-   - `Dabolang-3.5.9-t.64-macOS-arm64.zip`
-   - `Dabolang-3.5.9-t.64-macOS-x64.zip`
-3. Release 공개 시 자동 배포됩니다. 기존 Release는 Actions에서 태그 입력 후 `deploy`를 선택해 다시 배포할 수 있습니다.
+2. 아래의 정식 승격 전 호환성 프로브를 통과한 prerelease를 그대로 정식 Release로 승격합니다. 정식 Release에는 다음 4개 파일이 있어야 합니다.
+   - `Dabolang-3.5.9-t.69-Windows-x64.exe`
+   - `Dabolang-3.5.9-t.69-Windows-x64.legacy-compat.json`
+   - `Dabolang-3.5.9-t.69-macOS-arm64.zip`
+   - `Dabolang-3.5.9-t.69-macOS-x64.zip`
+3. Release 공개 시 자동 배포됩니다. 기존 Release는 Actions에서 태그 입력 후 `deploy`를 선택해 다시 배포할 수 있지만, Windows EXE와 정확히 일치하는 호환성 증명 파일이 없으면 정식 채널 배포가 중단됩니다.
 
 일반 push와 `deploy`를 끈 수동 실행은 더미 QA만 수행하며 사이트를 바꾸지 않습니다.
 
 ## 정식 승격 전 호환성 프로브
 
-레거시 Windows 업데이터와 새 EXE의 호환성을 정식 배포 전에 확인할 수 있습니다.
+레거시 Windows 업데이터와 새 EXE의 호환성 검증은 정식 배포 전 필수입니다. `3.5.9-t.63`~`3.5.9-t.66`은 CDN의 압축 전송 `Content-Length`를 원본 EXE 크기와 비교하므로, 모든 향후 Windows 정식판은 아래 절차로 정확한 바이트를 실제 Pages에서 검증해야 합니다.
 
-1. 검사할 Windows EXE를 정확한 버전 이름(예: `Dabolang-3.6.0-rc.1-Windows-x64.exe`)으로 첨부한 GitHub prerelease를 공개합니다. prerelease 공개 이벤트는 정식 채널을 자동 배포하지 않습니다.
-2. Actions에서 이 워크플로를 수동 실행하면서 현재 정식 태그를 `release_tag`에 넣고 `deploy`를 켭니다. `compat_probe_padding_bytes`에 `0`~`1000000` 값을, `compat_probe_source_tag`에는 공개한 prerelease 태그(예: `v3.6.0-rc.1`)를 넣습니다.
-3. 배포 후 숨김 경로 `/daborang-jitsi-screen-gallery/compat-probe/Dabolang-compat-probe-p<바이트>.exe`로 레거시 업데이터 동작을 확인합니다. 이 프로브는 `update/latest.json`과 실제 정식 Windows 다운로드를 변경하지 않습니다.
-4. 검증에 성공한 같은 빌드를 non-draft, non-prerelease 정식 Release로 공개합니다. 그때만 정식 채널 자동 배포가 실행됩니다.
+1. 최종 Windows EXE와 두 macOS ZIP을 정확한 최종 버전 이름으로 첨부한 GitHub prerelease를 공개합니다. 예: 태그 `v3.5.9-t.69`, 파일 `Dabolang-3.5.9-t.69-Windows-x64.exe`. prerelease 공개 이벤트는 정식 채널을 자동 배포하지 않습니다.
+2. Actions에서 이 워크플로를 수동 실행합니다. 현재 정식 태그를 `release_tag`에 넣고 `deploy`를 켠 뒤, `compat_probe_source_tag`에는 후보 prerelease 태그를, `compat_probe_padding_bytes`에는 정확한 최종 바이트를 검사한다는 뜻의 `0`을 넣습니다.
+3. 워크플로는 숨김 Pages 프로브가 새 파일로 바뀔 때까지 제한 시간 동안 기다립니다. 그 뒤 gzip·identity `Content-Length`, `curl --compressed`로 받은 디코딩 크기·SHA-256·MZ 헤더가 후보 EXE와 모두 같은지 검사합니다.
+4. 검증에 성공하면 `Dabolang-<버전>-Windows-x64.legacy-compat.json`을 후보 prerelease에 자동 첨부합니다. 이 JSON은 버전·파일명·크기·SHA-256·레거시 기준·Pages 주소·관측값·검증 시각·workflow 실행을 기록합니다.
+5. EXE를 다시 만들거나 수정하지 말고, 그 prerelease를 non-draft, non-prerelease 정식 Release로 그대로 승격합니다. 정식 배포는 증명 JSON을 다시 내려받아 Release의 EXE 크기·SHA-256과 대조하며, 누락·불일치 시 Pages를 변경하지 않고 실패합니다.
 
-`compat_probe_source_tag`를 비우면 프로브는 `release_tag`의 현재 정식 Windows EXE를 사용합니다. 소스 태그를 넣은 경우 워크플로는 그 Release가 draft가 아닌지, 태그에서 계산한 버전과 EXE의 정확한 파일명이 일치하는지 검사합니다. prerelease는 프로브 소스로 허용됩니다.
+`compat_probe_padding_bytes`의 1 이상 값은 패딩 후보를 탐색하는 용도로만 쓸 수 있으며 증명 파일을 만들지 않습니다. 최종 EXE 자체를 올린 `0` 프로브만 증명을 발급합니다. `compat_probe_source_tag`를 비우면 프로브는 `release_tag`의 현재 정식 Windows EXE를 사용하지만, 새 증명 발급은 prerelease를 대상으로 합니다.
+
+기존 `v3.5.9-t.68`은 강제 게이트 도입 전에 이미 같은 전체 다운로드 검증을 통과했습니다. 이 태그에 한해 `release_tag`와 `compat_probe_source_tag`를 모두 `v3.5.9-t.68`, 패딩을 `0`으로 한 번 실행하면 고정 크기 `93789016`과 SHA-256 `626dc5276af72dc8585a26a05e431b43bb441b468677e506dac4bb403a3ad4ae`를 재검증한 뒤 증명을 부트스트랩할 수 있습니다. 그 이후 t.68 재배포도 다른 버전과 동일하게 증명 자산이 필수입니다.
+
+프로브 배포는 숨김 파일만 추가하며 `update/latest.json`과 실제 정식 Windows 다운로드를 변경하지 않습니다. 정식 배포 뒤에는 숨김 프로브가 다시 제거됩니다.
 
 - Windows manifest: `https://ihansuru-gif.github.io/daborang-jitsi-screen-gallery/update/latest.json`
 - macOS 다운로드: `https://ihansuru-gif.github.io/daborang-jitsi-screen-gallery/mac/` → 고정 Google Drive 폴더

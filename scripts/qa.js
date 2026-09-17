@@ -14,6 +14,7 @@ const version = '9.8.7-t.6';
 const tag = `v${version}`;
 const names = {
   windows: `Dabolang-${version}-Windows-x64.exe`,
+  attestation: `Dabolang-${version}-Windows-x64.legacy-compat.json`,
   arm64: `Dabolang-${version}-macOS-arm64.zip`,
   x64: `Dabolang-${version}-macOS-x64.zip`
 };
@@ -44,6 +45,14 @@ function build(output = siteRoot) {
   ], { cwd: root, encoding: 'utf8' });
 }
 
+function attestation(command, extraArguments = []) {
+  return spawnSync(process.execPath, [
+    path.join(root, 'scripts', 'legacy-compat-attestation.js'),
+    command,
+    ...extraArguments
+  ], { cwd: root, encoding: 'utf8' });
+}
+
 try {
   fs.rmSync(qaRoot, { recursive: true, force: true });
   fs.mkdirSync(assetsRoot, { recursive: true });
@@ -51,6 +60,41 @@ try {
   dummy(path.join(assetsRoot, names.arm64), Buffer.from('PK\x03\x04', 'binary'), 0x41);
   dummy(path.join(assetsRoot, names.x64), Buffer.from('PK\x03\x04', 'binary'), 0x58);
   fs.writeFileSync(path.join(qaRoot, 'notes.txt'), '- 새 기능\n- 오류 수정\n', 'utf8');
+
+  const windowsPath = path.join(assetsRoot, names.windows);
+  const attestationPath = path.join(assetsRoot, names.attestation);
+  const windowsSize = fs.statSync(windowsPath).size;
+  const createdAttestation = attestation('create', [
+    '--version', version,
+    '--windows-asset', names.windows,
+    '--asset-path', windowsPath,
+    '--pages-url', 'https://ihansuru-gif.github.io/daborang-jitsi-screen-gallery/compat-probe/Dabolang-compat-probe-p0.exe',
+    '--gzip-content-length', String(windowsSize),
+    '--identity-content-length', String(windowsSize),
+    '--decoded-size', String(windowsSize),
+    '--mz', 'true',
+    '--workflow-run', 'https://github.com/ihansuru-gif/ihansuru-gif.github.io/actions/runs/123456789/attempts/1',
+    '--output', attestationPath
+  ]);
+  assert.strictEqual(createdAttestation.status, 0, createdAttestation.stderr || createdAttestation.stdout);
+  const verifiedAttestation = attestation('verify', [
+    '--version', version,
+    '--asset-path', windowsPath,
+    '--attestation-path', attestationPath
+  ]);
+  assert.strictEqual(verifiedAttestation.status, 0, verifiedAttestation.stderr || verifiedAttestation.stdout);
+  const attestationJson = JSON.parse(fs.readFileSync(attestationPath, 'utf8'));
+  assert.deepStrictEqual(attestationJson.legacyBaselines, [
+    '3.5.9-t.63', '3.5.9-t.64', '3.5.9-t.65', '3.5.9-t.66'
+  ]);
+  assert.strictEqual(attestationJson.size, windowsSize);
+  assert.strictEqual(attestationJson.sha256, hash(windowsPath));
+  assert.deepStrictEqual(attestationJson.observed, {
+    gzipContentLength: windowsSize,
+    identityContentLength: windowsSize,
+    decodedSize: windowsSize,
+    mz: true
+  });
 
   const result = build();
   assert.strictEqual(result.status, 0, result.stderr || result.stdout);
@@ -136,7 +180,30 @@ try {
   assert.match(workflow, /truncate -s/);
   assert.match(workflow, /source_size \+ PROBE_PADDING_BYTES/);
   assert.match(workflow, /compat-probe/);
-  assert.strictEqual((workflow.match(/gh release download/g) || []).length, 2);
+  assert.match(workflow, /Dabolang-\$\{VERSION\}-Windows-x64\.legacy-compat\.json/);
+  assert.match(workflow, /Require matching legacy compatibility attestation/);
+  assert.match(workflow, /legacy-compat-attestation\.js verify/);
+  assert.match(workflow, /if:.*inputs\.compat_probe_padding_bytes == ''/);
+  assert.match(workflow, /verify-compat-probe:\s*\n\s+needs: \[build, deploy\]/);
+  assert.match(workflow, /Verify the deployed Pages probe/);
+  assert.match(workflow, /for attempt in \$\(seq 1 36\)/);
+  assert.match(workflow, /Accept-Encoding: identity/);
+  assert.match(workflow, /Accept-Encoding: gzip/);
+  assert.match(workflow, /--compressed/);
+  assert.match(workflow, /identity_length.*EXPECTED_SIZE/);
+  assert.match(workflow, /gzip_length.*EXPECTED_SIZE/);
+  assert.match(workflow, /decoded_sha256.*EXPECTED_SHA256/);
+  assert.match(workflow, /cmp --silent expected-probe\.exe downloaded-probe\.exe/);
+  assert.match(workflow, /Create exact-byte compatibility attestation/);
+  assert.match(workflow, /legacy-compat-attestation\.js create/);
+  assert.match(workflow, /Attach compatibility attestation to the candidate release/);
+  assert.match(workflow, /gh release upload.*\n[\s\S]*--clobber/);
+  assert.match(workflow, /contents: write/);
+  assert.match(workflow, /source_tag.*v3\.5\.9-t\.68/);
+  assert.match(workflow, /93789016/);
+  assert.match(workflow, /626dc5276af72dc8585a26a05e431b43bb441b468677e506dac4bb403a3ad4ae/);
+  assert.strictEqual((workflow.match(/gh release download/g) || []).length, 3);
+  assert.ok(workflow.indexOf('Require matching legacy compatibility attestation') < workflow.indexOf('node scripts/build-site.js'));
   assert.ok(workflow.indexOf('node scripts/build-site.js') < workflow.indexOf('Download optional compatibility probe source'));
   assert.ok(workflow.indexOf('Download optional compatibility probe source') < workflow.indexOf('Add optional unpublished legacy compatibility probe'));
   assert.doesNotMatch(workflow.slice(workflow.indexOf('Download optional compatibility probe source')), /latest\.json/);
@@ -146,12 +213,28 @@ try {
   assert.match(readme, /prerelease 공개 이벤트는 정식 채널을 자동 배포하지 않습니다/);
   assert.match(readme, /update\/latest\.json.*변경하지 않습니다/);
   assert.match(readme, /non-draft, non-prerelease 정식 Release/);
+  assert.match(readme, /legacy-compat\.json/);
+  assert.match(readme, /gzip·identity `Content-Length`/);
+  assert.match(readme, /증명 JSON.*크기·SHA-256/);
+  assert.match(readme, /누락·불일치 시 Pages를 변경하지 않고 실패/);
+  assert.match(readme, /v3\.5\.9-t\.68.*부트스트랩/);
+
+  const tamperedAttestation = { ...attestationJson, sha256: '0'.repeat(64) };
+  const tamperedPath = path.join(assetsRoot, 'tampered-attestation.json');
+  fs.writeFileSync(tamperedPath, `${JSON.stringify(tamperedAttestation)}\n`, 'utf8');
+  const rejectedAttestation = attestation('verify', [
+    '--version', version,
+    '--asset-path', windowsPath,
+    '--attestation-path', tamperedPath
+  ]);
+  assert.notStrictEqual(rejectedAttestation.status, 0);
+  assert.match(rejectedAttestation.stderr, /증명 SHA-256/);
 
   fs.writeFileSync(path.join(assetsRoot, names.windows), Buffer.from('NO', 'ascii'));
   const rejected = build(path.join(qaRoot, 'rejected-site'));
   assert.notStrictEqual(rejected.status, 0);
   assert.match(rejected.stderr, /Windows EXE 파일 크기|Windows EXE 파일 헤더/);
-  process.stdout.write('PASS: public update channel validates three assets and redirects existing macOS clients to the fixed Google Drive folder\n');
+  process.stdout.write('PASS: public update channel validates release assets, enforces legacy attestation, and redirects macOS clients to Drive\n');
 } finally {
   fs.rmSync(qaRoot, { recursive: true, force: true });
 }
