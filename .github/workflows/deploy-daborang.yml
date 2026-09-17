@@ -20,6 +20,14 @@ on:
         required: true
         default: false
         type: boolean
+      compat_probe_release_id:
+        description: 'Optional draft release id containing an unpublished legacy-updater probe'
+        required: false
+        type: string
+      compat_probe_asset_name:
+        description: 'Optional probe EXE asset name; copied outside the live manifest'
+        required: false
+        type: string
 
 concurrency:
   group: dabolang-public-update-channel
@@ -140,6 +148,27 @@ jobs:
           --assets incoming
           --notes-file incoming/release-notes.txt
           --output _site
+      - name: Add optional unpublished legacy compatibility probe
+        if: ${{ inputs.compat_probe_release_id != '' || inputs.compat_probe_asset_name != '' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PROBE_RELEASE_ID: ${{ inputs.compat_probe_release_id }}
+          PROBE_ASSET_NAME: ${{ inputs.compat_probe_asset_name }}
+        run: |
+          set -euo pipefail
+          [[ "$PROBE_RELEASE_ID" =~ ^[0-9]+$ ]]
+          [[ "$PROBE_ASSET_NAME" =~ ^Dabolang-compat-probe-[0-9A-Za-z._-]+\.exe$ ]]
+          asset_ids=$(gh api "repos/$GITHUB_REPOSITORY/releases/$PROBE_RELEASE_ID/assets" \
+            --jq ".[] | select(.name == \"$PROBE_ASSET_NAME\") | .id")
+          test "$(printf '%s\n' "$asset_ids" | sed '/^$/d' | wc -l)" -eq 1
+          asset_id=$(printf '%s\n' "$asset_ids" | sed '/^$/d')
+          probe_root="_site/daborang-jitsi-screen-gallery/compat-probe"
+          mkdir -p "$probe_root"
+          gh api "repos/$GITHUB_REPOSITORY/releases/assets/$asset_id" \
+            -H 'Accept: application/octet-stream' > "$probe_root/$PROBE_ASSET_NAME"
+          test "$(head -c 2 "$probe_root/$PROBE_ASSET_NAME")" = 'MZ'
+          test "$(stat -c %s "$probe_root/$PROBE_ASSET_NAME")" -ge 1048576
       - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v5
         with:
