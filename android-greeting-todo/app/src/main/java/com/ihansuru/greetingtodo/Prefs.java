@@ -13,6 +13,7 @@ final class Prefs {
     static final String MODE_IMAGE = "image";
     static final String MODE_TODO = "todo";
     static final String MODE_BOTH = "both";
+
     private static final String NAME = "greeting_todo_settings";
     private static final String DIRECT_NAME = "greeting_todo_direct";
     private static final String SEP = "__GT_SEP__";
@@ -20,7 +21,10 @@ final class Prefs {
 
     private Prefs() {}
 
-    private static SharedPreferences normal(Context c) { return c.getSharedPreferences(NAME, Context.MODE_PRIVATE); }
+    private static SharedPreferences normal(Context c) {
+        return c.getSharedPreferences(NAME, Context.MODE_PRIVATE);
+    }
+
     private static SharedPreferences direct(Context c) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             return c.createDeviceProtectedStorageContext().getSharedPreferences(DIRECT_NAME, Context.MODE_PRIVATE);
@@ -29,46 +33,89 @@ final class Prefs {
     }
 
     static boolean enabled(Context c) { return direct(c).getBoolean("enabled", false); }
+
     static void setEnabled(Context c, boolean v) {
         direct(c).edit().putBoolean("enabled", v).apply();
         normal(c).edit().putBoolean("enabled", v).apply();
     }
-    static long duration(Context c) { return Math.max(500, Math.min(10000, normal(c).getLong("duration", 4000))); }
-    static void setDuration(Context c, long v) { normal(c).edit().putLong("duration", Math.max(500, Math.min(10000, v))).apply(); }
-    static boolean tapDismiss(Context c) { return normal(c).getBoolean("tap_dismiss", true); }
-    static void setTapDismiss(Context c, boolean v) { normal(c).edit().putBoolean("tap_dismiss", v).apply(); }
+
+    static long duration(Context c) {
+        return Math.max(500L, Math.min(10000L, normal(c).getLong("duration", 4000L)));
+    }
+
+    static void setDuration(Context c, long v) {
+        normal(c).edit().putLong("duration", Math.max(500L, Math.min(10000L, v))).apply();
+    }
+
+    static boolean tapDismiss(Context c) { return false; }
+    static void setTapDismiss(Context c, boolean ignored) {
+        normal(c).edit().putBoolean("tap_dismiss", false).apply();
+    }
 
     static String mode(Context c) {
         String v = normal(c).getString("mode", MODE_IMAGE);
         return MODE_TODO.equals(v) || MODE_BOTH.equals(v) ? v : MODE_IMAGE;
     }
+
     static void setMode(Context c, String v) {
         if (!MODE_IMAGE.equals(v) && !MODE_TODO.equals(v) && !MODE_BOTH.equals(v)) v = MODE_IMAGE;
         normal(c).edit().putString("mode", v).apply();
     }
-    static boolean showImage(Context c) { return MODE_IMAGE.equals(mode(c)) || MODE_BOTH.equals(mode(c)); }
-    static boolean showTodo(Context c) { return MODE_TODO.equals(mode(c)) || MODE_BOTH.equals(mode(c)); }
+
+    static boolean showImage(Context c) {
+        String mode = mode(c);
+        return MODE_IMAGE.equals(mode) || MODE_BOTH.equals(mode);
+    }
+
+    static boolean showTodo(Context c) {
+        String mode = mode(c);
+        return MODE_TODO.equals(mode) || MODE_BOTH.equals(mode);
+    }
 
     static int imageSize(Context c) { return clamp(normal(c).getInt("image_size", 100), 30, 200); }
     static void setImageSize(Context c, int v) { normal(c).edit().putInt("image_size", clamp(v, 30, 200)).apply(); }
     static float imageX(Context c) { return unit(normal(c).getFloat("image_x", .68f)); }
     static float imageY(Context c) { return unit(normal(c).getFloat("image_y", .70f)); }
-    static void setImagePosition(Context c, float x, float y) { normal(c).edit().putFloat("image_x", unit(x)).putFloat("image_y", unit(y)).apply(); }
+    static void setImagePosition(Context c, float x, float y) {
+        normal(c).edit().putFloat("image_x", unit(x)).putFloat("image_y", unit(y)).apply();
+    }
 
-    static int todoWidth(Context c) { return clamp(normal(c).getInt("todo_width", 70), 40, 92); }
-    static void setTodoWidth(Context c, int v) { normal(c).edit().putInt("todo_width", clamp(v, 40, 92)).apply(); }
-    static float todoX(Context c) { return unit(normal(c).getFloat("todo_x", .35f)); }
-    static float todoY(Context c) { return unit(normal(c).getFloat("todo_y", .31f)); }
-    static void setTodoPosition(Context c, float x, float y) { normal(c).edit().putFloat("todo_x", unit(x)).putFloat("todo_y", unit(y)).apply(); }
+    static int todoWidth(Context c) { return clamp(normal(c).getInt("todo_width", 82), 46, 96); }
+    static void setTodoWidth(Context c, int v) { normal(c).edit().putInt("todo_width", clamp(v, 46, 96)).apply(); }
+    static float todoScale(Context c) { return clampFloat(normal(c).getFloat("todo_scale", 1f), .72f, 1.55f); }
+    static void setTodoScale(Context c, float v) { normal(c).edit().putFloat("todo_scale", clampFloat(v, .72f, 1.55f)).apply(); }
+    static float todoX(Context c) { return unit(normal(c).getFloat("todo_x", .50f)); }
+    static float todoY(Context c) { return unit(normal(c).getFloat("todo_y", .34f)); }
+    static void setTodoPosition(Context c, float x, float y) {
+        normal(c).edit().putFloat("todo_x", unit(x)).putFloat("todo_y", unit(y)).apply();
+    }
+
+    static float textScale(Context c) { return clampFloat(normal(c).getFloat("text_scale", 1f), .82f, 1.65f); }
+    static void setTextScale(Context c, float v) { normal(c).edit().putFloat("text_scale", clampFloat(v, .82f, 1.65f)).apply(); }
 
     static float hue(Context c) {
         float h = normal(c).getFloat("todo_hue", 232f) % 360f;
         return h < 0 ? h + 360f : h;
     }
-    static void setHue(Context c, float h) { normal(c).edit().putFloat("todo_hue", ((h % 360f) + 360f) % 360f).apply(); }
+
+    static void setHue(Context c, float h) {
+        normal(c).edit().putFloat("todo_hue", ((h % 360f) + 360f) % 360f).apply();
+    }
+
     static int saturation(Context c) { return clamp(normal(c).getInt("todo_sat", 34), 12, 76); }
     static void setSaturation(Context c, int v) { normal(c).edit().putInt("todo_sat", clamp(v, 12, 76)).apply(); }
-    static int todoColor(Context c) { return Color.HSVToColor(new float[]{hue(c), saturation(c) / 100f, .98f}); }
+    static int todoColor(Context c) {
+        return Color.HSVToColor(new float[]{hue(c), saturation(c) / 100f, .98f});
+    }
+
+    static String weatherSummary(Context c) {
+        String value = normal(c).getString("weather_summary", "");
+        return value == null ? "" : value.trim();
+    }
+
+    static void setWeatherSummary(Context c, String value) {
+        normal(c).edit().putString("weather_summary", value == null ? "" : value.trim()).apply();
+    }
 
     static List<String> items(Context c) {
         SharedPreferences p = normal(c);
@@ -98,22 +145,47 @@ final class Prefs {
     }
 
     static void setItems(Context c, List<String> items, List<String> categories) {
-        ArrayList<String> a = new ArrayList<>();
-        ArrayList<String> b = new ArrayList<>();
-        for (int i = 0; i < items.size() && a.size() < 8; i++) {
-            String s = items.get(i) == null ? "" : items.get(i).trim().replace(SEP, " ");
-            if (s.isEmpty()) continue;
-            a.add(s);
-            String cat = i < categories.size() ? categories.get(i) : "업무";
-            if (!"개인".equals(cat) && !"기타".equals(cat)) cat = "업무";
-            b.add(cat);
+        ArrayList<String> cleanItems = new ArrayList<>();
+        ArrayList<String> cleanCategories = new ArrayList<>();
+        for (int i = 0; i < items.size() && cleanItems.size() < 12; i++) {
+            String text = items.get(i) == null ? "" : items.get(i).trim().replace(SEP, " ");
+            if (text.isEmpty()) continue;
+            cleanItems.add(text);
+            String category = i < categories.size() ? categories.get(i) : "업무";
+            cleanCategories.add(normalizeCategory(category));
         }
         normal(c).edit()
                 .putBoolean(KEY_TODO_INITIALIZED, true)
-                .putString("todo_items", join(a))
-                .putString("todo_categories", join(b))
+                .putString("todo_items", join(cleanItems))
+                .putString("todo_categories", join(cleanCategories))
                 .putInt("checked", 0)
                 .apply();
+    }
+
+    static void addItem(Context c, String text, String category) {
+        String value = text == null ? "" : text.trim();
+        if (value.isEmpty()) return;
+        ArrayList<String> currentItems = new ArrayList<>(items(c));
+        ArrayList<String> currentCategories = new ArrayList<>(categories(c));
+        if (currentItems.size() >= 12) return;
+        currentItems.add(value);
+        currentCategories.add(normalizeCategory(category));
+        setItems(c, currentItems, currentCategories);
+    }
+
+    static void updateItem(Context c, int index, String text, String category) {
+        ArrayList<String> currentItems = new ArrayList<>(items(c));
+        ArrayList<String> currentCategories = new ArrayList<>(categories(c));
+        if (index < 0 || index >= currentItems.size()) return;
+        String value = text == null ? "" : text.trim();
+        if (value.isEmpty()) {
+            completeItem(c, index);
+            return;
+        }
+        currentItems.set(index, value);
+        while (currentCategories.size() < currentItems.size()) currentCategories.add("업무");
+        currentCategories.set(index, normalizeCategory(category));
+        setItems(c, currentItems, currentCategories);
     }
 
     static void completeItem(Context c, int index) {
@@ -125,18 +197,29 @@ final class Prefs {
         setItems(c, currentItems, currentCategories);
     }
 
-    static int checkedMask(Context c) { return normal(c).getInt("checked", 0); }
-    static boolean checked(Context c, int i) { return i >= 0 && i < 31 && (checkedMask(c) & (1 << i)) != 0; }
-    static void toggleChecked(Context c, int i) {
-        if (i < 0 || i >= 31) return;
-        normal(c).edit().putInt("checked", checkedMask(c) ^ (1 << i)).apply();
-    }
+    static int checkedMask(Context c) { return 0; }
+    static boolean checked(Context c, int i) { return false; }
+    static void toggleChecked(Context c, int i) { completeItem(c, i); }
 
     static void resetLayout(Context c) {
         normal(c).edit()
-                .putInt("image_size", 100).putFloat("image_x", .68f).putFloat("image_y", .70f)
-                .putInt("todo_width", 70).putFloat("todo_x", .35f).putFloat("todo_y", .31f)
-                .putFloat("todo_hue", 232f).putInt("todo_sat", 34).apply();
+                .putInt("image_size", 100)
+                .putFloat("image_x", .68f)
+                .putFloat("image_y", .70f)
+                .putInt("todo_width", 82)
+                .putFloat("todo_scale", 1f)
+                .putFloat("todo_x", .50f)
+                .putFloat("todo_y", .34f)
+                .putFloat("text_scale", 1f)
+                .putFloat("todo_hue", 232f)
+                .putInt("todo_sat", 34)
+                .putBoolean("tap_dismiss", false)
+                .apply();
+    }
+
+    private static String normalizeCategory(String category) {
+        if ("개인".equals(category) || "기타".equals(category)) return category;
+        return "업무";
     }
 
     private static List<String> split(String raw) {
@@ -144,11 +227,17 @@ final class Prefs {
         for (String s : raw.split(SEP, -1)) if (!s.isEmpty()) out.add(s);
         return out;
     }
+
     private static String join(List<String> values) {
         StringBuilder b = new StringBuilder();
-        for (String s : values) { if (b.length() > 0) b.append(SEP); b.append(s); }
+        for (String s : values) {
+            if (b.length() > 0) b.append(SEP);
+            b.append(s == null ? "" : s.replace(SEP, " "));
+        }
         return b.toString();
     }
+
     private static int clamp(int v, int lo, int hi) { return Math.max(lo, Math.min(hi, v)); }
-    private static float unit(float v) { return Math.max(.05f, Math.min(.95f, v)); }
+    private static float clampFloat(float v, float lo, float hi) { return Math.max(lo, Math.min(hi, v)); }
+    private static float unit(float v) { return Math.max(.04f, Math.min(.96f, v)); }
 }

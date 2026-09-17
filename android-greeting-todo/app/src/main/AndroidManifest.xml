@@ -15,6 +15,15 @@
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
 
         <activity
+            android:name=".LockOverlayActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:showWhenLocked="true"
+            android:turnScreenOn="false"
+            android:theme="@style/GreetingTodoOverlayTheme" />
+
+        <activity
             android:name=".TodoQuickEditActivity"
             android:exported="false" />
 

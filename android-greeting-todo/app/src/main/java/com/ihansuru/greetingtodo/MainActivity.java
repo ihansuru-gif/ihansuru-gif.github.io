@@ -26,6 +26,8 @@ import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.util.Locale;
+
 public class MainActivity extends Activity {
     private static final int PICK_IMAGE = 2001;
     private static final int NOTIFICATION_PERMISSION = 2002;
@@ -38,7 +40,6 @@ public class MainActivity extends Activity {
     private TextView durationValue;
     private TextView overlayState;
     private SeekBar durationSeek;
-    private Switch tapDismiss;
     private Switch enabled;
     private boolean syncing;
     private Bitmap previewBitmap;
@@ -59,6 +60,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onDestroy() {
         if (previewBitmap != null && !previewBitmap.isRecycled()) previewBitmap.recycle();
+        previewBitmap = null;
         super.onDestroy();
     }
 
@@ -66,26 +68,27 @@ public class MainActivity extends Activity {
         ScrollView scroll = new ScrollView(this);
         scroll.setFillViewport(true);
         scroll.setBackgroundColor(Color.rgb(247, 249, 253));
+
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(dp(18), dp(22), dp(18), dp(36));
-        scroll.addView(root, new ScrollView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        scroll.addView(root, new ScrollView.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
-        TextView title = text("인사앱", 29, true, Color.rgb(25, 38, 61));
-        root.addView(title);
-        TextView subtitle = text("화면을 켜면 내가 정한 이미지와 투두가 잠깐 나타나요", 13, false, Color.rgb(104, 116, 136));
-        LinearLayout.LayoutParams subLp = wrap();
-        subLp.setMargins(0, dp(4), 0, dp(18));
-        root.addView(subtitle, subLp);
+        root.addView(text("인사앱", 29, true, Color.rgb(25, 38, 61)));
+        TextView subtitle = text("화면을 켜는 순간 오늘의 이미지와 투두를 바로 보여줘요", 13, false, Color.rgb(104, 116, 136));
+        LinearLayout.LayoutParams subtitleLp = wrap();
+        subtitleLp.setMargins(0, dp(4), 0, dp(18));
+        root.addView(subtitle, subtitleLp);
 
         LinearLayout modeCard = card();
         modeCard.addView(text("표시 요소", 16, true, dark()));
-        modeCard.addView(caption("이미지와 투두 중 원하는 구성을 골라요"));
+        modeCard.addView(caption("잠금화면이 있으면 잠금화면 위, 없으면 일반 화면 위에 표시돼요"));
         RadioGroup modes = new RadioGroup(this);
         modes.setOrientation(RadioGroup.VERTICAL);
-        imageMode = radio("이미지");
-        todoMode = radio("투두");
-        bothMode = radio("이미지 + 투두 둘 다");
+        imageMode = radio("이미지만");
+        todoMode = radio("투두만");
+        bothMode = radio("이미지 + 투두");
         modes.addView(imageMode);
         modes.addView(todoMode);
         modes.addView(bothMode);
@@ -93,21 +96,23 @@ public class MainActivity extends Activity {
 
         Button todoEdit = softButton("투두 내용 수정");
         modeCard.addView(todoEdit, buttonLp(dp(10)));
-        Button edit = primary("화면 편집");
+        Button edit = primary("위치 / 크기 편집");
         modeCard.addView(edit, buttonLp(dp(8)));
         root.addView(modeCard, cardLp(0));
 
         LinearLayout imageCard = card();
         LinearLayout imageHeader = new LinearLayout(this);
         imageHeader.setGravity(Gravity.CENTER_VERTICAL);
-        imageHeader.addView(text("이미지", 16, true, dark()), new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+        imageHeader.addView(text("이미지", 16, true, dark()),
+                new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
         Button choose = softButton("이미지 선택");
         imageHeader.addView(choose, new LinearLayout.LayoutParams(dp(108), dp(42)));
         imageCard.addView(imageHeader);
         imagePreview = new ImageView(this);
         imagePreview.setScaleType(ImageView.ScaleType.FIT_CENTER);
         imagePreview.setBackground(rounded(Color.rgb(244, 247, 251), dp(18), Color.rgb(230, 235, 243), 1));
-        LinearLayout.LayoutParams previewLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(190));
+        LinearLayout.LayoutParams previewLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(190));
         previewLp.setMargins(0, dp(12), 0, 0);
         imageCard.addView(imagePreview, previewLp);
         imageState = caption("");
@@ -116,28 +121,33 @@ public class MainActivity extends Activity {
 
         LinearLayout settingsCard = card();
         settingsCard.addView(text("표시 설정", 16, true, dark()));
+
         LinearLayout durationRow = new LinearLayout(this);
         durationRow.setGravity(Gravity.CENTER_VERTICAL);
-        durationRow.addView(text("표시 시간", 14, true, dark()), new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+        durationRow.addView(text("표시 시간", 14, true, dark()),
+                new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
         durationValue = text("4.0초", 13, true, Color.rgb(66, 117, 235));
         durationRow.addView(durationValue);
         settingsCard.addView(durationRow, matchWrap(dp(12), 0));
+
         durationSeek = new SeekBar(this);
         durationSeek.setMax(95);
-        settingsCard.addView(durationSeek, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(46)));
+        settingsCard.addView(durationSeek, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(46)));
+
         settingsCard.addView(divider(), matchHeight(dp(10), 1));
-        tapDismiss = new Switch(this);
-        tapDismiss.setText("터치 시 바로 닫기");
-        tapDismiss.setTextSize(14);
-        tapDismiss.setTextColor(dark());
-        tapDismiss.setGravity(Gravity.CENTER_VERTICAL);
-        settingsCard.addView(tapDismiss, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(56)));
+        TextView touchRule = text("화면을 터치해도 전체가 닫히지 않아요", 13, false, Color.rgb(100, 112, 132));
+        settingsCard.addView(touchRule, matchWrap(dp(10), dp(4)));
+        TextView pauseRule = text("입력·편집·이동·크기 조절 중에는 타이머가 멈춰요", 13, false, Color.rgb(100, 112, 132));
+        settingsCard.addView(pauseRule, matchWrap(dp(4), dp(4)));
+
         enabled = new Switch(this);
         enabled.setText("기능 사용");
         enabled.setTextSize(14);
         enabled.setTextColor(dark());
         enabled.setGravity(Gravity.CENTER_VERTICAL);
-        settingsCard.addView(enabled, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(56)));
+        settingsCard.addView(enabled, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(56)));
         root.addView(settingsCard, cardLp(dp(12)));
 
         LinearLayout permissionCard = card();
@@ -148,14 +158,16 @@ public class MainActivity extends Activity {
         permissionText.addView(text("다른 앱 위에 표시", 15, true, dark()));
         overlayState = caption("");
         permissionText.addView(overlayState);
-        permissionRow.addView(permissionText, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+        permissionRow.addView(permissionText,
+                new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
         Button permission = softButton("권한 열기");
         permissionRow.addView(permission, new LinearLayout.LayoutParams(dp(100), dp(42)));
         permissionCard.addView(permissionRow);
         root.addView(permissionCard, cardLp(dp(12)));
 
         Button preview = primary("실제 표시 미리보기");
-        LinearLayout.LayoutParams pLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(56));
+        LinearLayout.LayoutParams pLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(56));
         pLp.setMargins(0, dp(16), 0, 0);
         root.addView(preview, pLp);
 
@@ -171,9 +183,7 @@ public class MainActivity extends Activity {
         choose.setOnClickListener(v -> pickImage());
         permission.setOnClickListener(v -> openOverlayPermission());
         preview.setOnClickListener(v -> showPreview());
-        tapDismiss.setOnCheckedChangeListener((b, checked) -> {
-            if (!syncing) Prefs.setTapDismiss(this, checked);
-        });
+
         enabled.setOnCheckedChangeListener((b, checked) -> {
             if (syncing) return;
             if (checked && !readyToEnable()) {
@@ -190,14 +200,13 @@ public class MainActivity extends Activity {
                 stopWakeService();
             }
         });
+
         durationSeek.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-            @Override
-            public void onProgressChanged(SeekBar bar, int progress, boolean fromUser) {
+            @Override public void onProgressChanged(SeekBar bar, int progress, boolean fromUser) {
                 long ms = 500L + progress * 100L;
-                durationValue.setText(String.format(java.util.Locale.KOREAN, "%.1f초", ms / 1000f));
+                durationValue.setText(String.format(Locale.KOREAN, "%.1f초", ms / 1000f));
                 if (fromUser) Prefs.setDuration(MainActivity.this, ms);
             }
-
             @Override public void onStartTrackingTouch(SeekBar bar) {}
             @Override public void onStopTrackingTouch(SeekBar bar) {}
         });
@@ -210,13 +219,16 @@ public class MainActivity extends Activity {
         imageMode.setChecked(Prefs.MODE_IMAGE.equals(mode));
         todoMode.setChecked(Prefs.MODE_TODO.equals(mode));
         bothMode.setChecked(Prefs.MODE_BOTH.equals(mode));
-        durationSeek.setProgress((int) ((Prefs.duration(this) - 500) / 100));
-        durationValue.setText(String.format(java.util.Locale.KOREAN, "%.1f초", Prefs.duration(this) / 1000f));
-        tapDismiss.setChecked(Prefs.tapDismiss(this));
+        durationSeek.setProgress((int) ((Prefs.duration(this) - 500L) / 100L));
+        durationValue.setText(String.format(Locale.KOREAN, "%.1f초", Prefs.duration(this) / 1000f));
         enabled.setChecked(Prefs.enabled(this));
         syncing = false;
-        overlayState.setText(Settings.canDrawOverlays(this) ? "허용됨" : "허용 필요");
-        overlayState.setTextColor(Settings.canDrawOverlays(this) ? Color.rgb(41, 151, 101) : Color.rgb(207, 115, 49));
+
+        boolean overlayAllowed = Settings.canDrawOverlays(this);
+        overlayState.setText(overlayAllowed ? "허용됨" : "허용 필요");
+        overlayState.setTextColor(overlayAllowed
+                ? Color.rgb(41, 151, 101)
+                : Color.rgb(207, 115, 49));
         refreshImagePreview();
     }
 
@@ -264,7 +276,8 @@ public class MainActivity extends Activity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == PICK_IMAGE && resultCode == RESULT_OK && data != null && data.getData() != null) {
+        if (requestCode == PICK_IMAGE && resultCode == RESULT_OK
+                && data != null && data.getData() != null) {
             Uri uri = data.getData();
             if (ImageStore.importUri(this, uri)) {
                 refreshImagePreview();
@@ -277,17 +290,19 @@ public class MainActivity extends Activity {
 
     private void openOverlayPermission() {
         try {
-            startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + getPackageName())));
+            startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:" + getPackageName())));
         } catch (RuntimeException e) {
-            startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + getPackageName())));
+            startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                    Uri.parse("package:" + getPackageName())));
         }
     }
 
     private void startWakeService() {
-        Intent i = new Intent(this, WakeService.class).setAction(WakeService.ACTION_START);
+        Intent intent = new Intent(this, WakeService.class).setAction(WakeService.ACTION_START);
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(i);
-            else startService(i);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(intent);
+            else startService(intent);
         } catch (RuntimeException e) {
             Prefs.setEnabled(this, false);
         }
@@ -295,15 +310,14 @@ public class MainActivity extends Activity {
 
     private void stopWakeService() {
         Prefs.setEnabled(this, false);
-        try {
-            stopService(new Intent(this, WakeService.class));
-        } catch (RuntimeException ignored) {}
+        try { stopService(new Intent(this, WakeService.class)); } catch (RuntimeException ignored) {}
         OverlayManager.hide(this);
     }
 
     private void requestNotificationPermission() {
         if (Build.VERSION.SDK_INT >= 33
-                && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, NOTIFICATION_PERMISSION);
         }
     }
@@ -318,29 +332,34 @@ public class MainActivity extends Activity {
     }
 
     private LinearLayout.LayoutParams cardLp(int top) {
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         lp.setMargins(0, top, 0, 0);
         return lp;
     }
 
     private LinearLayout.LayoutParams matchWrap(int top, int bottom) {
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         lp.setMargins(0, top, 0, bottom);
         return lp;
     }
 
     private LinearLayout.LayoutParams matchHeight(int top, int h) {
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, h);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, h);
         lp.setMargins(0, top, 0, 0);
         return lp;
     }
 
     private LinearLayout.LayoutParams wrap() {
-        return new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        return new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
     }
 
     private LinearLayout.LayoutParams buttonLp(int top) {
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(50));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(50));
         lp.setMargins(0, top, 0, 0);
         return lp;
     }
