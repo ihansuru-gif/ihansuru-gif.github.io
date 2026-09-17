@@ -24,6 +24,10 @@ on:
         description: 'Optional zero padding used to stage an unpublished legacy-updater probe'
         required: false
         type: string
+      compat_probe_source_tag:
+        description: 'Optional published prerelease tag supplying the hidden compatibility probe EXE'
+        required: false
+        type: string
 
 concurrency:
   group: dabolang-public-update-channel
@@ -34,7 +38,7 @@ permissions:
 
 jobs:
   dispatch-release:
-    if: ${{ github.event_name == 'release' }}
+    if: ${{ github.event_name == 'release' && github.event.release.draft == false && github.event.release.prerelease == false }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -144,17 +148,47 @@ jobs:
           --assets incoming
           --notes-file incoming/release-notes.txt
           --output _site
+      - name: Download optional compatibility probe source
+        if: ${{ inputs.compat_probe_padding_bytes != '' && inputs.compat_probe_source_tag != '' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PROBE_SOURCE_TAG: ${{ inputs.compat_probe_source_tag }}
+        run: |
+          set -euo pipefail
+          [[ "$PROBE_SOURCE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]
+          probe_version="${PROBE_SOURCE_TAG#v}"
+          probe_asset="Dabolang-${probe_version}-Windows-x64.exe"
+          release_state=$(gh release view "$PROBE_SOURCE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --json isDraft,tagName,assets \
+            --jq "[.isDraft, (.tagName == \"$PROBE_SOURCE_TAG\"), ([.assets[].name | select(. == \"$probe_asset\")] | length)] | @tsv")
+          test "$release_state" = $'false\ttrue\t1'
+          mkdir -p compat-probe-source
+          gh release download "$PROBE_SOURCE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --pattern "$probe_asset" \
+            --dir compat-probe-source
+          test -f "compat-probe-source/$probe_asset"
       - name: Add optional unpublished legacy compatibility probe
         if: ${{ inputs.compat_probe_padding_bytes != '' }}
         shell: bash
         env:
           VERSION: ${{ steps.release.outputs.version }}
           PROBE_PADDING_BYTES: ${{ inputs.compat_probe_padding_bytes }}
+          PROBE_SOURCE_TAG: ${{ inputs.compat_probe_source_tag }}
         run: |
           set -euo pipefail
           [[ "$PROBE_PADDING_BYTES" =~ ^[0-9]{1,7}$ ]]
           test "$PROBE_PADDING_BYTES" -le 1000000
-          source="incoming/Dabolang-${VERSION}-Windows-x64.exe"
+          if [[ -n "$PROBE_SOURCE_TAG" ]]; then
+            [[ "$PROBE_SOURCE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]
+            probe_version="${PROBE_SOURCE_TAG#v}"
+            source="compat-probe-source/Dabolang-${probe_version}-Windows-x64.exe"
+          else
+            source="incoming/Dabolang-${VERSION}-Windows-x64.exe"
+          fi
+          test -f "$source"
           probe_name="Dabolang-compat-probe-p${PROBE_PADDING_BYTES}.exe"
           probe_root="_site/daborang-jitsi-screen-gallery/compat-probe"
           mkdir -p "$probe_root"

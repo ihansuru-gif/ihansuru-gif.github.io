@@ -95,7 +95,8 @@ try {
   assert.match(workflow, /workflow_dispatch:/);
   assert.match(workflow, /deploy:\s*\n\s+description:/);
   assert.match(workflow, /compat_probe_padding_bytes:\s*\n\s+description:/);
-  assert.match(workflow, /dispatch-release:\s*\n\s+if:.*github\.event_name == 'release'/);
+  assert.match(workflow, /compat_probe_source_tag:\s*\n\s+description:/);
+  assert.match(workflow, /dispatch-release:\s*\n\s+if:.*github\.event_name == 'release'.*github\.event\.release\.draft == false.*github\.event\.release\.prerelease == false/);
   assert.match(workflow, /actions: write/);
   assert.match(workflow, /gh workflow run deploy-daborang\.yml/);
   assert.match(workflow, /--ref main/);
@@ -118,12 +119,33 @@ try {
   assert.match(workflow, /--json isDraft,isPrerelease/);
   assert.match(workflow, /false\\tfalse/);
   assert.match(workflow, /Add optional unpublished legacy compatibility probe/);
+  assert.match(workflow, /Download optional compatibility probe source/);
   assert.match(workflow, /inputs\.compat_probe_padding_bytes != ''/);
+  assert.match(workflow, /inputs\.compat_probe_source_tag != ''/);
   assert.match(workflow, /PROBE_PADDING_BYTES.*inputs\.compat_probe_padding_bytes/);
+  assert.match(workflow, /PROBE_SOURCE_TAG.*inputs\.compat_probe_source_tag/);
+  assert.match(workflow, /\[\[ "\$PROBE_SOURCE_TAG" =~ \^v\[0-9\]\+/);
+  assert.match(workflow, /probe_version="\$\{PROBE_SOURCE_TAG#v\}"/);
+  assert.match(workflow, /probe_asset="Dabolang-\$\{probe_version\}-Windows-x64\.exe"/);
+  assert.match(workflow, /--json isDraft,tagName,assets/);
+  assert.match(workflow, /\.tagName == \\"\$PROBE_SOURCE_TAG\\"/);
+  assert.match(workflow, /\.assets\[\]\.name \| select\(\. == \\"\$probe_asset\\"\)/);
+  assert.match(workflow, /false\\ttrue\\t1/);
+  assert.match(workflow, /compat-probe-source\/Dabolang-\$\{probe_version\}-Windows-x64\.exe/);
+  assert.match(workflow, /incoming\/Dabolang-\$\{VERSION\}-Windows-x64\.exe/);
   assert.match(workflow, /truncate -s/);
   assert.match(workflow, /source_size \+ PROBE_PADDING_BYTES/);
   assert.match(workflow, /compat-probe/);
-  assert.strictEqual((workflow.match(/gh release download/g) || []).length, 1);
+  assert.strictEqual((workflow.match(/gh release download/g) || []).length, 2);
+  assert.ok(workflow.indexOf('node scripts/build-site.js') < workflow.indexOf('Download optional compatibility probe source'));
+  assert.ok(workflow.indexOf('Download optional compatibility probe source') < workflow.indexOf('Add optional unpublished legacy compatibility probe'));
+  assert.doesNotMatch(workflow.slice(workflow.indexOf('Download optional compatibility probe source')), /latest\.json/);
+
+  const readme = fs.readFileSync(path.join(root, 'README.md'), 'utf8');
+  assert.match(readme, /compat_probe_source_tag/);
+  assert.match(readme, /prerelease 공개 이벤트는 정식 채널을 자동 배포하지 않습니다/);
+  assert.match(readme, /update\/latest\.json.*변경하지 않습니다/);
+  assert.match(readme, /non-draft, non-prerelease 정식 Release/);
 
   fs.writeFileSync(path.join(assetsRoot, names.windows), Buffer.from('NO', 'ascii'));
   const rejected = build(path.join(qaRoot, 'rejected-site'));
