@@ -1,9 +1,7 @@
 package com.ihansuru.greetingtodo;
 
-import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
-import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.Typeface;
@@ -30,7 +28,6 @@ import java.util.Locale;
 
 public class MainActivity extends Activity {
     private static final int PICK_IMAGE = 2001;
-    private static final int NOTIFICATION_PERMISSION = 2002;
 
     private RadioButton imageMode;
     private RadioButton todoMode;
@@ -94,10 +91,10 @@ public class MainActivity extends Activity {
         modes.addView(bothMode);
         modeCard.addView(modes, matchWrap(dp(8), 0));
 
-        Button todoEdit = softButton("투두 내용 수정");
-        modeCard.addView(todoEdit, buttonLp(dp(10)));
-        Button edit = primary("위치 / 크기 편집");
-        modeCard.addView(edit, buttonLp(dp(8)));
+        Button edit = primary("실제 화면에서 직접 편집");
+        modeCard.addView(edit, buttonLp(dp(10)));
+        TextView editHint = caption("표시된 투두의 ⚙️에서 위치·크기·내용을 바로 편집하고, 카테고리는 태그를 눌러 바꿀 수 있어요");
+        modeCard.addView(editHint, matchWrap(dp(7), 0));
         root.addView(modeCard, cardLp(0));
 
         LinearLayout imageCard = card();
@@ -138,7 +135,7 @@ public class MainActivity extends Activity {
         settingsCard.addView(divider(), matchHeight(dp(10), 1));
         TextView touchRule = text("화면을 터치해도 전체가 닫히지 않아요", 13, false, Color.rgb(100, 112, 132));
         settingsCard.addView(touchRule, matchWrap(dp(10), dp(4)));
-        TextView pauseRule = text("입력·편집·이동·크기 조절 중에는 타이머가 멈춰요", 13, false, Color.rgb(100, 112, 132));
+        TextView pauseRule = text("입력·편집·이동·크기 조절·순서 변경 중에는 타이머가 멈춰요", 13, false, Color.rgb(100, 112, 132));
         settingsCard.addView(pauseRule, matchWrap(dp(4), dp(4)));
 
         enabled = new Switch(this);
@@ -178,8 +175,7 @@ public class MainActivity extends Activity {
             else Prefs.setMode(this, Prefs.MODE_BOTH);
             updateImageCardVisibility(imageCard);
         });
-        todoEdit.setOnClickListener(v -> startActivity(new Intent(this, TodoQuickEditActivity.class)));
-        edit.setOnClickListener(v -> startActivity(new Intent(this, EditorActivity.class)));
+        edit.setOnClickListener(v -> showDirectEdit());
         choose.setOnClickListener(v -> pickImage());
         permission.setOnClickListener(v -> openOverlayPermission());
         preview.setOnClickListener(v -> showPreview());
@@ -193,12 +189,8 @@ public class MainActivity extends Activity {
                 return;
             }
             Prefs.setEnabled(this, checked);
-            if (checked) {
-                startWakeService();
-                requestNotificationPermission();
-            } else {
-                stopWakeService();
-            }
+            if (checked) startWakeService();
+            else stopWakeService();
         });
 
         durationSeek.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
@@ -261,6 +253,15 @@ public class MainActivity extends Activity {
         return true;
     }
 
+    private void showDirectEdit() {
+        if (!readyToEnable()) return;
+        if (!OverlayManager.show(this)) {
+            toast("실제 화면을 열지 못했어요");
+            return;
+        }
+        toast("투두의 ⚙️를 누르면 화면 위에서 바로 이동·크기 조절할 수 있어요");
+    }
+
     private void showPreview() {
         if (!readyToEnable()) return;
         if (!OverlayManager.show(this)) toast("미리보기를 표시하지 못했어요");
@@ -312,14 +313,6 @@ public class MainActivity extends Activity {
         Prefs.setEnabled(this, false);
         try { stopService(new Intent(this, WakeService.class)); } catch (RuntimeException ignored) {}
         OverlayManager.hide(this);
-    }
-
-    private void requestNotificationPermission() {
-        if (Build.VERSION.SDK_INT >= 33
-                && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
-                != PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, NOTIFICATION_PERMISSION);
-        }
     }
 
     private LinearLayout card() {
