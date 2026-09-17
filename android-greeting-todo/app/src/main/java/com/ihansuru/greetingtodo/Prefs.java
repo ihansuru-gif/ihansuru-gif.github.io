@@ -59,7 +59,13 @@ final class Prefs {
 
     static void setMode(Context c, String v) {
         if (!MODE_IMAGE.equals(v) && !MODE_TODO.equals(v) && !MODE_BOTH.equals(v)) v = MODE_IMAGE;
-        normal(c).edit().putString("mode", v).apply();
+        boolean todo = MODE_TODO.equals(v) || MODE_BOTH.equals(v);
+        boolean image = MODE_IMAGE.equals(v) || MODE_BOTH.equals(v);
+        normal(c).edit()
+                .putString("mode", v)
+                .putBoolean("todo_expanded", todo)
+                .putBoolean("image_expanded", image)
+                .apply();
     }
 
     static boolean showImage(Context c) {
@@ -72,22 +78,68 @@ final class Prefs {
         return MODE_TODO.equals(mode) || MODE_BOTH.equals(mode);
     }
 
-    static int imageSize(Context c) { return clamp(normal(c).getInt("image_size", 100), 30, 200); }
-    static void setImageSize(Context c, int v) { normal(c).edit().putInt("image_size", clamp(v, 30, 200)).apply(); }
+    static boolean todoExpanded(Context c) {
+        SharedPreferences p = normal(c);
+        return p.contains("todo_expanded") ? p.getBoolean("todo_expanded", true) : showTodo(c);
+    }
+    static void setTodoExpanded(Context c, boolean v) { normal(c).edit().putBoolean("todo_expanded", v).apply(); }
+
+    static boolean imageExpanded(Context c) {
+        SharedPreferences p = normal(c);
+        return p.contains("image_expanded") ? p.getBoolean("image_expanded", false) : showImage(c);
+    }
+    static void setImageExpanded(Context c, boolean v) { normal(c).edit().putBoolean("image_expanded", v).apply(); }
+
+    static boolean memoEnabled(Context c) { return normal(c).getBoolean("memo_enabled", true); }
+    static void setMemoEnabled(Context c, boolean v) { normal(c).edit().putBoolean("memo_enabled", v).apply(); }
+    static boolean memoExpanded(Context c) { return normal(c).getBoolean("memo_expanded", false); }
+    static void setMemoExpanded(Context c, boolean v) { normal(c).edit().putBoolean("memo_expanded", v).apply(); }
+
+    static int imageSize(Context c) { return clamp(normal(c).getInt("image_size", 100), 30, 220); }
+    static void setImageSize(Context c, int v) { normal(c).edit().putInt("image_size", clamp(v, 30, 220)).apply(); }
     static float imageX(Context c) { return unit(normal(c).getFloat("image_x", .68f)); }
     static float imageY(Context c) { return unit(normal(c).getFloat("image_y", .70f)); }
     static void setImagePosition(Context c, float x, float y) {
         normal(c).edit().putFloat("image_x", unit(x)).putFloat("image_y", unit(y)).apply();
     }
 
-    static int todoWidth(Context c) { return clamp(normal(c).getInt("todo_width", 82), 46, 96); }
-    static void setTodoWidth(Context c, int v) { normal(c).edit().putInt("todo_width", clamp(v, 46, 96)).apply(); }
+    static int todoWidth(Context c) { return clamp(normal(c).getInt("todo_width", 82), 42, 96); }
+    static void setTodoWidth(Context c, int v) { normal(c).edit().putInt("todo_width", clamp(v, 42, 96)).apply(); }
+
+    static int todoHeight(Context c) { return clamp(normal(c).getInt("todo_height", 0), 0, 90); }
+    static void setTodoSize(Context c, int widthPct, int heightPct) {
+        normal(c).edit()
+                .putInt("todo_width", clamp(widthPct, 42, 96))
+                .putInt("todo_height", clamp(heightPct, 20, 90))
+                .apply();
+    }
+
     static float todoScale(Context c) { return clampFloat(normal(c).getFloat("todo_scale", 1f), .72f, 1.55f); }
     static void setTodoScale(Context c, float v) { normal(c).edit().putFloat("todo_scale", clampFloat(v, .72f, 1.55f)).apply(); }
     static float todoX(Context c) { return unit(normal(c).getFloat("todo_x", .50f)); }
     static float todoY(Context c) { return unit(normal(c).getFloat("todo_y", .34f)); }
     static void setTodoPosition(Context c, float x, float y) {
         normal(c).edit().putFloat("todo_x", unit(x)).putFloat("todo_y", unit(y)).apply();
+    }
+
+    static int memoWidth(Context c) { return clamp(normal(c).getInt("memo_width", 78), 42, 96); }
+    static int memoHeight(Context c) { return clamp(normal(c).getInt("memo_height", 48), 24, 88); }
+    static void setMemoSize(Context c, int widthPct, int heightPct) {
+        normal(c).edit()
+                .putInt("memo_width", clamp(widthPct, 42, 96))
+                .putInt("memo_height", clamp(heightPct, 24, 88))
+                .apply();
+    }
+    static float memoX(Context c) { return unit(normal(c).getFloat("memo_x", .48f)); }
+    static float memoY(Context c) { return unit(normal(c).getFloat("memo_y", .55f)); }
+    static void setMemoPosition(Context c, float x, float y) {
+        normal(c).edit().putFloat("memo_x", unit(x)).putFloat("memo_y", unit(y)).apply();
+    }
+    static float memoTextScale(Context c) {
+        return clampFloat(normal(c).getFloat("memo_text_scale", 1f), .82f, 1.65f);
+    }
+    static void setMemoTextScale(Context c, float v) {
+        normal(c).edit().putFloat("memo_text_scale", clampFloat(v, .82f, 1.65f)).apply();
     }
 
     static float textScale(Context c) { return clampFloat(normal(c).getFloat("text_scale", 1f), .82f, 1.65f); }
@@ -231,9 +283,15 @@ final class Prefs {
                 .putFloat("image_x", .68f)
                 .putFloat("image_y", .70f)
                 .putInt("todo_width", 82)
+                .putInt("todo_height", 0)
                 .putFloat("todo_scale", 1f)
                 .putFloat("todo_x", .50f)
                 .putFloat("todo_y", .34f)
+                .putInt("memo_width", 78)
+                .putInt("memo_height", 48)
+                .putFloat("memo_x", .48f)
+                .putFloat("memo_y", .55f)
+                .putFloat("memo_text_scale", 1f)
                 .putFloat("text_scale", 1f)
                 .putFloat("todo_hue", 232f)
                 .putInt("todo_sat", 34)
