@@ -16,7 +16,8 @@ import org.json.JSONObject;
 import java.util.ArrayList;
 
 final class DoodleView extends View {
-    interface ChangeListener { void onChanged(String serialized); }\n    interface InteractionListener { void onInteraction(boolean active); }
+    interface ChangeListener { void onChanged(String serialized); }
+    interface InteractionListener { void onInteraction(boolean active); }
 
     private static final class Stroke {
         int color;
@@ -26,7 +27,8 @@ final class DoodleView extends View {
 
     private final ArrayList<Stroke> strokes = new ArrayList<>();
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private ChangeListener listener;\n    private InteractionListener interactionListener;
+    private ChangeListener listener;
+    private InteractionListener interactionListener;
     private Stroke active;
     private int penColor = Color.rgb(48, 54, 67);
     private float penWidth = 5f;
@@ -41,7 +43,8 @@ final class DoodleView extends View {
         setFocusable(true);
     }
 
-    void setChangeListener(ChangeListener value) { listener = value; }\n    void setInteractionListener(InteractionListener value) { interactionListener = value; }
+    void setChangeListener(ChangeListener value) { listener = value; }
+    void setInteractionListener(InteractionListener value) { interactionListener = value; }
 
     void setPenColor(int color) {
         penColor = color;
@@ -137,7 +140,8 @@ final class DoodleView extends View {
         if (getWidth() <= 0 || getHeight() <= 0) return false;
         switch (event.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
-                getParent().requestDisallowInterceptTouchEvent(true);\n                if (interactionListener != null) interactionListener.onInteraction(true);
+                getParent().requestDisallowInterceptTouchEvent(true);
+                if (interactionListener != null) interactionListener.onInteraction(true);
                 active = new Stroke();
                 active.color = erasing ? Color.WHITE : penColor;
                 active.width = erasing ? Math.max(18f, penWidth * 3f) : penWidth;
@@ -162,7 +166,8 @@ final class DoodleView extends View {
                     invalidate();
                     notifyChange();
                 }
-                getParent().requestDisallowInterceptTouchEvent(false);\n                if (interactionListener != null) interactionListener.onInteraction(false);
+                getParent().requestDisallowInterceptTouchEvent(false);
+                if (interactionListener != null) interactionListener.onInteraction(false);
                 return true;
             default:
                 return true;
