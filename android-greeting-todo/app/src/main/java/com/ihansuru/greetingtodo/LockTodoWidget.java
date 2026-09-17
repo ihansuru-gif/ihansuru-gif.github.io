@@ -280,7 +280,7 @@ final class LockTodoWidget extends FrameLayout {
 
             textPaint.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.NORMAL));
             textPaint.setTextSize(sp(15.2f * textScale * uiScale));
-            textPaint.setTextColor(Color.rgb(36, 46, 64));
+            textPaint.setColor(Color.rgb(36, 46, 64));
             textPaint.setTextAlign(Paint.Align.LEFT);
             String title = ellipsize(items.get(i), textPaint, Math.max(dp(56), textRight - textLeft));
             canvas.drawText(title, textLeft, cy + dp(5 * uiScale), textPaint);
