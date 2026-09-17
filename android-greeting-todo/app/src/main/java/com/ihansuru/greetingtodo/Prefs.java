@@ -188,6 +188,30 @@ final class Prefs {
         setItems(c, currentItems, currentCategories);
     }
 
+    static void cycleCategory(Context c, int index) {
+        ArrayList<String> currentItems = new ArrayList<>(items(c));
+        ArrayList<String> currentCategories = new ArrayList<>(categories(c));
+        if (index < 0 || index >= currentItems.size()) return;
+        while (currentCategories.size() < currentItems.size()) currentCategories.add("업무");
+        String current = normalizeCategory(currentCategories.get(index));
+        String next = "업무".equals(current) ? "개인" : "개인".equals(current) ? "기타" : "업무";
+        currentCategories.set(index, next);
+        setItems(c, currentItems, currentCategories);
+    }
+
+    static void moveItem(Context c, int fromIndex, int toIndex) {
+        ArrayList<String> currentItems = new ArrayList<>(items(c));
+        ArrayList<String> currentCategories = new ArrayList<>(categories(c));
+        if (fromIndex < 0 || fromIndex >= currentItems.size()) return;
+        if (toIndex < 0 || toIndex >= currentItems.size() || fromIndex == toIndex) return;
+        while (currentCategories.size() < currentItems.size()) currentCategories.add("업무");
+        String item = currentItems.remove(fromIndex);
+        String category = currentCategories.remove(fromIndex);
+        currentItems.add(toIndex, item);
+        currentCategories.add(toIndex, category);
+        setItems(c, currentItems, currentCategories);
+    }
+
     static void completeItem(Context c, int index) {
         ArrayList<String> currentItems = new ArrayList<>(items(c));
         ArrayList<String> currentCategories = new ArrayList<>(categories(c));
