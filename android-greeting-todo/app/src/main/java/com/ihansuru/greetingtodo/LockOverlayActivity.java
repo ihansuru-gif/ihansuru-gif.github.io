@@ -5,6 +5,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.Color;
+import android.graphics.Paint;
+import android.graphics.RectF;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
@@ -53,8 +55,11 @@ public class LockOverlayActivity extends Activity {
     private LockTodoWidget todoWidget;
     private ImageView imageView;
     private Bitmap imageBitmap;
-    private LinearLayout editPanel;
+
+    private LinearLayout editToolbar;
+    private LinearLayout detailPanel;
     private LinearLayout editRowsContainer;
+    private boolean directEditing;
 
     private Runnable finishTask;
     private long remainingMs;
@@ -94,9 +99,13 @@ public class LockOverlayActivity extends Activity {
         super.onCreate(state);
         current = new WeakReference<>(this);
         configureWindow();
+
         root = new FrameLayout(this);
         root.setBackgroundColor(Color.TRANSPARENT);
+        root.setClipChildren(false);
+        root.setClipToPadding(false);
         setContentView(root);
+
         buildObjects();
         remainingMs = Prefs.duration(this);
         root.post(() -> {
@@ -127,10 +136,11 @@ public class LockOverlayActivity extends Activity {
 
     @Override
     public void onBackPressed() {
-        if (editPanel != null) {
-            closeEditor();
+        if (detailPanel != null) {
+            closeDetailEditor();
             return;
         }
+        if (directEditing) exitDirectEdit();
     }
 
     private void configureWindow() {
@@ -157,6 +167,7 @@ public class LockOverlayActivity extends Activity {
     private void buildImageObject() {
         imageBitmap = ImageStore.load(this, 2400);
         if (imageBitmap == null) return;
+
         imageFrame = new GestureFrame(this, GestureFrame.KIND_IMAGE);
         imageFrame.setGestureListener(new GestureFrame.GestureListener() {
             @Override public void onGestureStart(int kind) { pause("gesture"); }
@@ -165,12 +176,14 @@ public class LockOverlayActivity extends Activity {
                 resume("gesture");
             }
         });
+
         imageView = new ImageView(this);
         imageView.setImageBitmap(imageBitmap);
         imageView.setScaleType(ImageView.ScaleType.FIT_CENTER);
         imageView.setBackgroundColor(Color.TRANSPARENT);
         imageFrame.addView(imageView, new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT));
         root.addView(imageFrame);
     }
 
@@ -183,6 +196,7 @@ public class LockOverlayActivity extends Activity {
                 resume("gesture");
             }
         });
+
         todoWidget = new LockTodoWidget(this);
         todoWidget.setCallback(new LockTodoWidget.Callback() {
             @Override public void onComplete(int index) {
@@ -191,7 +205,7 @@ public class LockOverlayActivity extends Activity {
             }
 
             @Override public void onGear() {
-                openEditor();
+                enterDirectEdit();
             }
 
             @Override public void onAdd(String text) {
@@ -200,12 +214,14 @@ public class LockOverlayActivity extends Activity {
             }
 
             @Override public void onInteractionChanged(boolean active) {
-                if (active) pause("quick_input");
-                else resume("quick_input");
+                if (active) pause("todo_interaction");
+                else resume("todo_interaction");
             }
         });
+
         todoFrame.addView(todoWidget, new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT));
         root.addView(todoFrame);
     }
 
@@ -213,6 +229,8 @@ public class LockOverlayActivity extends Activity {
         if (root.getWidth() <= 0 || root.getHeight() <= 0) return;
         if (imageFrame != null) layoutImageFrame(true);
         if (todoFrame != null) layoutTodoFrame(true);
+        if (editToolbar != null) editToolbar.bringToFront();
+        if (detailPanel != null) detailPanel.bringToFront();
     }
 
     private void layoutImageFrame(boolean fromPrefs) {
@@ -223,6 +241,7 @@ public class LockOverlayActivity extends Activity {
         float base = Math.min(sw * .46f, sh * .36f) * (Prefs.imageSize(this) / 100f);
         base = Math.max(dp(72), Math.min(base, Math.min(sw * .90f, sh * .65f)));
         float ratio = imageBitmap.getWidth() / (float) Math.max(1, imageBitmap.getHeight());
+
         int width;
         int height;
         if (ratio >= 1f) {
@@ -232,9 +251,12 @@ public class LockOverlayActivity extends Activity {
             height = Math.round(base);
             width = Math.max(dp(48), Math.round(base * ratio));
         }
+
         imageFrame.setLayoutParams(new FrameLayout.LayoutParams(width, height));
         imageView.setLayoutParams(new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT));
+
         if (fromPrefs) placeByCenter(imageFrame, Prefs.imageX(this), Prefs.imageY(this));
         else clampPosition(imageFrame);
     }
@@ -244,30 +266,42 @@ public class LockOverlayActivity extends Activity {
         int sh = root.getHeight();
         if (sw <= 0 || sh <= 0 || todoWidget == null || todoFrame == null) return;
 
-        int width = clamp(Math.round(sw * Prefs.todoWidth(this) / 100f), dp(252), Math.round(sw * .96f));
+        int width = clamp(
+                Math.round(sw * Prefs.todoWidth(this) / 100f),
+                dp(220),
+                Math.round(sw * .96f));
+
         todoWidget.refresh();
         todoWidget.measure(
                 View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
-                View.MeasureSpec.makeMeasureSpec(Math.round(sh * .82f), View.MeasureSpec.AT_MOST));
-        int height = Math.min(todoWidget.getMeasuredHeight(), Math.round(sh * .82f));
-        todoFrame.setLayoutParams(new FrameLayout.LayoutParams(width, Math.max(dp(180), height)));
+                View.MeasureSpec.makeMeasureSpec(Math.round(sh * .86f), View.MeasureSpec.AT_MOST));
+
+        int height = Math.min(todoWidget.getMeasuredHeight(), Math.round(sh * .86f));
+        todoFrame.setLayoutParams(new FrameLayout.LayoutParams(width, Math.max(dp(170), height)));
         todoWidget.setLayoutParams(new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT));
+
         if (fromPrefs) placeByCenter(todoFrame, Prefs.todoX(this), Prefs.todoY(this));
         else clampPosition(todoFrame);
     }
 
     private void refreshTodoKeepingCenter() {
-        if (todoFrame == null || root.getWidth() <= 0) return;
+        if (todoFrame == null || root.getWidth() <= 0 || root.getHeight() <= 0) return;
+
         float cx = centerX(todoFrame) / root.getWidth();
         float cy = centerY(todoFrame) / root.getHeight();
+        boolean wasEditing = todoFrame.isEditing();
+
         layoutTodoFrame(false);
         placeByCenter(todoFrame, cx, cy);
+        todoFrame.setEditing(wasEditing);
+        if (editToolbar != null) editToolbar.bringToFront();
+        if (detailPanel != null) detailPanel.bringToFront();
     }
 
     private void placeByCenter(View view, float nx, float ny) {
         ViewGroup.LayoutParams raw = view.getLayoutParams();
-        if (!(raw instanceof FrameLayout.LayoutParams)) return;
         int width = raw.width;
         int height = raw.height;
         float x = nx * root.getWidth() - width / 2f;
@@ -283,17 +317,25 @@ public class LockOverlayActivity extends Activity {
 
     private void persistTodoGesture(int startW, int startH) {
         if (todoFrame == null || root.getWidth() <= 0 || root.getHeight() <= 0) return;
-        Prefs.setTodoPosition(this,
-                centerX(todoFrame) / root.getWidth(),
-                centerY(todoFrame) / root.getHeight());
+
+        float cx = centerX(todoFrame) / root.getWidth();
+        float cy = centerY(todoFrame) / root.getHeight();
+
         int widthPct = Math.round(todoFrame.getWidth() * 100f / root.getWidth());
         Prefs.setTodoWidth(this, widthPct);
-        if (startH > 0 && todoFrame.getHeight() > 0) {
+
+        if (startH > 0 && todoFrame.getHeight() > 0 && todoFrame.getHeight() != startH) {
             float ratio = todoFrame.getHeight() / (float) startH;
             Prefs.setTodoScale(this, Prefs.todoScale(this) * ratio);
         }
+
+        Prefs.setTodoPosition(this, cx, cy);
+
+        boolean editing = todoFrame.isEditing();
         layoutTodoFrame(false);
-        clampPosition(todoFrame);
+        placeByCenter(todoFrame, cx, cy);
+        todoFrame.setEditing(editing);
+
         Prefs.setTodoPosition(this,
                 centerX(todoFrame) / root.getWidth(),
                 centerY(todoFrame) / root.getHeight());
@@ -301,75 +343,153 @@ public class LockOverlayActivity extends Activity {
 
     private void persistImageGesture(int startW, int startH) {
         if (imageFrame == null || root.getWidth() <= 0 || root.getHeight() <= 0) return;
-        Prefs.setImagePosition(this,
-                centerX(imageFrame) / root.getWidth(),
-                centerY(imageFrame) / root.getHeight());
-        if (startW > 0 && imageFrame.getWidth() > 0) {
+
+        float cx = centerX(imageFrame) / root.getWidth();
+        float cy = centerY(imageFrame) / root.getHeight();
+
+        if (startW > 0 && imageFrame.getWidth() > 0 && imageFrame.getWidth() != startW) {
             float ratio = imageFrame.getWidth() / (float) startW;
             Prefs.setImageSize(this, Math.round(Prefs.imageSize(this) * ratio));
         }
+
+        Prefs.setImagePosition(this, cx, cy);
+
+        boolean editing = imageFrame.isEditing();
         layoutImageFrame(false);
-        clampPosition(imageFrame);
+        placeByCenter(imageFrame, cx, cy);
+        imageFrame.setEditing(editing);
+
         Prefs.setImagePosition(this,
                 centerX(imageFrame) / root.getWidth(),
                 centerY(imageFrame) / root.getHeight());
     }
 
-    private void openEditor() {
-        if (editPanel != null || todoWidget == null) return;
-        pause("editor");
-        todoWidget.clearInputFocus();
+    private void enterDirectEdit() {
+        if (directEditing) return;
+        directEditing = true;
+        pause("direct_edit");
+
+        if (todoWidget != null) todoWidget.clearInputFocus();
         if (todoFrame != null) todoFrame.setEditing(true);
         if (imageFrame != null) imageFrame.setEditing(true);
 
-        editPanel = new LinearLayout(this);
-        editPanel.setOrientation(LinearLayout.VERTICAL);
-        editPanel.setPadding(dp(16), dp(14), dp(16), dp(14));
-        editPanel.setBackground(rounded(Color.argb(252, 255, 255, 255), dp(26), Color.rgb(228, 232, 241), dp(1)));
-        editPanel.setElevation(dp(12));
+        buildEditToolbar();
+    }
 
-        LinearLayout top = new LinearLayout(this);
-        top.setGravity(Gravity.CENTER_VERTICAL);
-        TextView title = label("투두 편집", 18, true, Color.rgb(38, 48, 67));
+    private void buildEditToolbar() {
+        if (editToolbar != null) return;
+
+        editToolbar = new LinearLayout(this);
+        editToolbar.setOrientation(LinearLayout.HORIZONTAL);
+        editToolbar.setGravity(Gravity.CENTER_VERTICAL);
+        editToolbar.setPadding(dp(10), dp(7), dp(7), dp(7));
+        editToolbar.setBackground(rounded(
+                Color.argb(248, 255, 255, 255),
+                dp(18),
+                Color.rgb(220, 226, 238),
+                dp(1)));
+        editToolbar.setElevation(dp(16));
+
+        TextView hint = label(
+                "직접 편집 · 끌어 이동 · 모서리 ↘ 크기",
+                12.5f,
+                true,
+                Color.rgb(54, 66, 88));
+        editToolbar.addView(hint, new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+
+        Button detail = softButton("내용·색");
+        editToolbar.addView(detail, new LinearLayout.LayoutParams(dp(86), dp(40)));
+
+        Button done = primaryButton("완료");
+        LinearLayout.LayoutParams doneLp = new LinearLayout.LayoutParams(dp(66), dp(40));
+        doneLp.setMargins(dp(6), 0, 0, 0);
+        editToolbar.addView(done, doneLp);
+
+        FrameLayout.LayoutParams toolbarLp = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(58),
+                Gravity.TOP);
+        toolbarLp.setMargins(dp(10), dp(10), dp(10), 0);
+        root.addView(editToolbar, toolbarLp);
+        editToolbar.bringToFront();
+
+        detail.setOnClickListener(v -> openDetailEditor());
+        done.setOnClickListener(v -> exitDirectEdit());
+    }
+
+    private void exitDirectEdit() {
+        if (!directEditing) return;
+        closeDetailEditor();
+
+        if (editToolbar != null) {
+            root.removeView(editToolbar);
+            editToolbar = null;
+        }
+
+        if (todoFrame != null) todoFrame.setEditing(false);
+        if (imageFrame != null) imageFrame.setEditing(false);
+
+        directEditing = false;
+        hideKeyboard();
+        resume("direct_edit");
+    }
+
+    private void openDetailEditor() {
+        if (!directEditing || detailPanel != null || todoWidget == null) return;
+        pause("detail_editor");
+
+        detailPanel = new LinearLayout(this);
+        detailPanel.setOrientation(LinearLayout.VERTICAL);
+        detailPanel.setPadding(dp(16), dp(13), dp(16), dp(14));
+        detailPanel.setBackground(rounded(
+                Color.argb(252, 255, 255, 255),
+                dp(24),
+                Color.rgb(224, 229, 239),
+                dp(1)));
+        detailPanel.setElevation(dp(18));
+
+        LinearLayout titleRow = new LinearLayout(this);
+        titleRow.setGravity(Gravity.CENTER_VERTICAL);
+        titleRow.addView(label("투두 세부 편집", 17, true, Color.rgb(38, 48, 67)),
+                new LinearLayout.LayoutParams(0, dp(42), 1));
         Button close = softButton("닫기");
-        top.addView(title, new LinearLayout.LayoutParams(0, dp(44), 1));
-        top.addView(close, new LinearLayout.LayoutParams(dp(74), dp(42)));
-        editPanel.addView(top);
-        editPanel.addView(label("카드와 이미지는 테두리를 끌어 이동하고, 오른쪽 아래 모서리를 잡아 크기를 바꿔요.",
-                11.5f, false, Color.rgb(107, 118, 137)), matchWrap(dp(2)));
+        titleRow.addView(close, new LinearLayout.LayoutParams(dp(68), dp(40)));
+        detailPanel.addView(titleRow);
 
         ScrollView scroll = new ScrollView(this);
         LinearLayout controls = new LinearLayout(this);
         controls.setOrientation(LinearLayout.VERTICAL);
-        controls.setPadding(0, dp(7), 0, dp(8));
+        controls.setPadding(0, dp(4), 0, dp(8));
         scroll.addView(controls, new ScrollView.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-        editPanel.addView(scroll, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT));
+        detailPanel.addView(scroll, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, 0, 1));
 
         controls.addView(sectionTitle("카드 색상"));
         ColorWheelView wheel = new ColorWheelView(this);
         wheel.setHue(Prefs.hue(this));
-        LinearLayout.LayoutParams wheelLp = new LinearLayout.LayoutParams(dp(148), dp(148));
+        LinearLayout.LayoutParams wheelLp = new LinearLayout.LayoutParams(dp(138), dp(138));
         wheelLp.gravity = Gravity.CENTER_HORIZONTAL;
-        wheelLp.setMargins(0, dp(4), 0, dp(3));
+        wheelLp.setMargins(0, dp(3), 0, dp(2));
         controls.addView(wheel, wheelLp);
         wheel.setListener(hue -> {
             Prefs.setHue(this, hue);
             todoWidget.refresh();
         });
 
-        TextView saturationLabel = smallValue("진하기  " + Prefs.saturation(this) + "%");
-        controls.addView(saturationLabel);
-        SeekBar saturation = new SeekBar(this);
-        saturation.setMax(64);
-        saturation.setProgress(Prefs.saturation(this) - 12);
-        controls.addView(saturation, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(42)));
-        saturation.setOnSeekBarChangeListener(new SimpleSeek() {
+        TextView satLabel = smallValue("진하기  " + Prefs.saturation(this) + "%");
+        controls.addView(satLabel);
+        SeekBar sat = new SeekBar(this);
+        sat.setMax(64);
+        sat.setProgress(Prefs.saturation(this) - 12);
+        controls.addView(sat, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(40)));
+        sat.setOnSeekBarChangeListener(new SimpleSeek() {
             @Override public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
                 int value = 12 + progress;
-                saturationLabel.setText("진하기  " + value + "%");
+                satLabel.setText("진하기  " + value + "%");
                 if (fromUser) {
                     Prefs.setSaturation(LockOverlayActivity.this, value);
                     todoWidget.refresh();
@@ -378,17 +498,18 @@ public class LockOverlayActivity extends Activity {
         });
 
         controls.addView(sectionTitle("글자 크기"));
-        TextView textSizeLabel = smallValue(String.format(Locale.KOREAN, "%.0f%%", Prefs.textScale(this) * 100f));
-        controls.addView(textSizeLabel);
+        TextView textLabel = smallValue(String.format(
+                Locale.KOREAN, "%.0f%%", Prefs.textScale(this) * 100f));
+        controls.addView(textLabel);
         SeekBar textSize = new SeekBar(this);
         textSize.setMax(83);
         textSize.setProgress(Math.round((Prefs.textScale(this) - .82f) * 100f));
         controls.addView(textSize, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(42)));
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(40)));
         textSize.setOnSeekBarChangeListener(new SimpleSeek() {
             @Override public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
                 float value = .82f + progress / 100f;
-                textSizeLabel.setText(String.format(Locale.KOREAN, "%.0f%%", value * 100f));
+                textLabel.setText(String.format(Locale.KOREAN, "%.0f%%", value * 100f));
                 if (fromUser) {
                     Prefs.setTextScale(LockOverlayActivity.this, value);
                     refreshTodoKeepingCenter();
@@ -397,57 +518,70 @@ public class LockOverlayActivity extends Activity {
         });
 
         controls.addView(sectionTitle("일정 내용"));
+        controls.addView(label(
+                "업무·개인·기타 태그는 평소 화면에서도 바로 눌러 바꿀 수 있어요.",
+                11.5f, false, Color.rgb(105, 116, 136)));
+
         editRowsContainer = new LinearLayout(this);
         editRowsContainer.setOrientation(LinearLayout.VERTICAL);
         controls.addView(editRowsContainer, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT));
         rebuildEditorRows();
 
         Button add = softButton("+ 일정 추가");
         LinearLayout.LayoutParams addLp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(46));
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(45));
         addLp.setMargins(0, dp(7), 0, 0);
         controls.addView(add, addLp);
         add.setOnClickListener(v -> addEditorRow("", "업무", true));
 
-        close.setOnClickListener(v -> closeEditor());
+        close.setOnClickListener(v -> closeDetailEditor());
 
         FrameLayout.LayoutParams panelLp = new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
-                Math.max(dp(330), Math.round(getResources().getDisplayMetrics().heightPixels * .52f)),
+                Math.max(dp(300), Math.round(getResources().getDisplayMetrics().heightPixels * .48f)),
                 Gravity.BOTTOM);
-        panelLp.setMargins(dp(10), dp(10), dp(10), dp(10));
-        root.addView(editPanel, panelLp);
-        editPanel.bringToFront();
+        panelLp.setMargins(dp(10), dp(78), dp(10), dp(10));
+        root.addView(detailPanel, panelLp);
+        detailPanel.bringToFront();
+        if (editToolbar != null) editToolbar.bringToFront();
     }
 
-    private void closeEditor() {
-        if (editPanel == null) return;
+    private void closeDetailEditor() {
+        if (detailPanel == null) return;
+
         saveEditorRows();
-        View panel = editPanel;
-        editPanel = null;
+
+        View panel = detailPanel;
+        detailPanel = null;
         editRowsContainer = null;
         editRows.clear();
         root.removeView(panel);
-        if (todoFrame != null) todoFrame.setEditing(false);
-        if (imageFrame != null) imageFrame.setEditing(false);
         hideKeyboard();
-        resume("editor");
+
+        if (editToolbar != null) editToolbar.bringToFront();
+        resume("detail_editor");
     }
 
     private void rebuildEditorRows() {
         if (editRowsContainer == null) return;
         editRows.clear();
         editRowsContainer.removeAllViews();
+
         List<String> items = Prefs.items(this);
         List<String> categories = Prefs.categories(this);
         for (int i = 0; i < items.size(); i++) {
-            addEditorRow(items.get(i), i < categories.size() ? categories.get(i) : "업무", false);
+            addEditorRow(
+                    items.get(i),
+                    i < categories.size() ? categories.get(i) : "업무",
+                    false);
         }
     }
 
     private void addEditorRow(String value, String category, boolean focus) {
         if (editRowsContainer == null || editRows.size() >= 12) return;
+
         LinearLayout row = new LinearLayout(this);
         row.setGravity(Gravity.CENTER_VERTICAL);
         row.setPadding(0, dp(3), 0, dp(3));
@@ -460,16 +594,21 @@ public class LockOverlayActivity extends Activity {
         edit.setTextColor(Color.rgb(38, 48, 67));
         edit.setHintTextColor(Color.rgb(155, 164, 179));
         edit.setPadding(dp(11), 0, dp(8), 0);
-        edit.setBackground(rounded(Color.rgb(248, 249, 253), dp(13), Color.rgb(226, 231, 240), dp(1)));
+        edit.setBackground(rounded(
+                Color.rgb(248, 249, 253),
+                dp(13),
+                Color.rgb(226, 231, 240),
+                dp(1)));
         row.addView(edit, new LinearLayout.LayoutParams(0, dp(44), 1));
 
         Spinner spinner = new Spinner(this);
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(this,
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(
+                this,
                 android.R.layout.simple_spinner_dropdown_item,
                 new String[]{"업무", "개인", "기타"});
         spinner.setAdapter(adapter);
         spinner.setSelection("개인".equals(category) ? 1 : "기타".equals(category) ? 2 : 0);
-        LinearLayout.LayoutParams spinLp = new LinearLayout.LayoutParams(dp(82), dp(44));
+        LinearLayout.LayoutParams spinLp = new LinearLayout.LayoutParams(dp(80), dp(44));
         spinLp.setMargins(dp(5), 0, 0, 0);
         row.addView(spinner, spinLp);
 
@@ -488,12 +627,14 @@ public class LockOverlayActivity extends Activity {
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) {}
             @Override public void afterTextChanged(Editable s) { saveEditorRows(); }
         });
+
         spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                 saveEditorRows();
             }
             @Override public void onNothingSelected(AdapterView<?> parent) {}
         });
+
         remove.setOnClickListener(v -> {
             editRows.remove(entry);
             editRowsContainer.removeView(row);
@@ -501,22 +642,24 @@ public class LockOverlayActivity extends Activity {
         });
 
         edit.setOnFocusChangeListener((v, hasFocus) -> {
-            if (hasFocus) pause("panel_input");
-            else resume("panel_input");
+            if (hasFocus) pause("detail_input");
+            else resume("detail_input");
         });
 
         if (focus) {
             edit.requestFocus();
             edit.postDelayed(() -> {
                 edit.setSelection(edit.getText().length());
-                InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+                InputMethodManager imm =
+                        (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
                 if (imm != null) imm.showSoftInput(edit, InputMethodManager.SHOW_IMPLICIT);
             }, 100);
         }
     }
 
     private void saveEditorRows() {
-        if (todoWidget == null || editRows.isEmpty() && editRowsContainer == null) return;
+        if (todoWidget == null || editRowsContainer == null) return;
+
         ArrayList<String> items = new ArrayList<>();
         ArrayList<String> categories = new ArrayList<>();
         for (EditRow row : editRows) {
@@ -526,6 +669,7 @@ public class LockOverlayActivity extends Activity {
             Object selected = row.category.getSelectedItem();
             categories.add(selected == null ? "업무" : selected.toString());
         }
+
         Prefs.setItems(this, items, categories);
         refreshTodoKeepingCenter();
     }
@@ -546,11 +690,13 @@ public class LockOverlayActivity extends Activity {
 
     private void scheduleTimer() {
         if (closing || !pauseReasons.isEmpty()) return;
+
         if (finishTask != null) handler.removeCallbacks(finishTask);
         if (remainingMs <= 0L) {
             finishOverlay();
             return;
         }
+
         timerStartedAt = SystemClock.uptimeMillis();
         finishTask = this::finishOverlay;
         handler.postDelayed(finishTask, remainingMs);
@@ -560,9 +706,11 @@ public class LockOverlayActivity extends Activity {
     private void finishOverlay() {
         if (closing) return;
         closing = true;
+
         if (finishTask != null) handler.removeCallbacks(finishTask);
         finishTask = null;
         timerScheduled = false;
+
         finish();
         overridePendingTransition(0, 0);
     }
@@ -570,15 +718,18 @@ public class LockOverlayActivity extends Activity {
     private void hideKeyboard() {
         View focused = getCurrentFocus();
         if (focused == null) return;
+
         focused.clearFocus();
-        InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+        InputMethodManager imm =
+                (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
         if (imm != null) imm.hideSoftInputFromWindow(focused.getWindowToken(), 0);
     }
 
     private TextView sectionTitle(String value) {
         TextView view = label(value, 14, true, Color.rgb(48, 58, 78));
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT);
         lp.setMargins(0, dp(9), 0, dp(4));
         view.setLayoutParams(lp);
         return view;
@@ -600,19 +751,31 @@ public class LockOverlayActivity extends Activity {
     private Button softButton(String value) {
         Button button = new Button(this);
         button.setText(value);
-        button.setTextSize(13);
+        button.setTextSize(12.5f);
         button.setAllCaps(false);
         button.setTextColor(Color.rgb(47, 57, 76));
         button.setPadding(dp(5), 0, dp(5), 0);
-        button.setBackground(rounded(Color.rgb(248, 249, 252), dp(14), Color.rgb(225, 230, 239), dp(1)));
+        button.setBackground(rounded(
+                Color.rgb(248, 249, 252),
+                dp(13),
+                Color.rgb(225, 230, 239),
+                dp(1)));
         return button;
     }
 
-    private LinearLayout.LayoutParams matchWrap(int top) {
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        lp.setMargins(0, top, 0, 0);
-        return lp;
+    private Button primaryButton(String value) {
+        Button button = new Button(this);
+        button.setText(value);
+        button.setTextSize(12.5f);
+        button.setAllCaps(false);
+        button.setTextColor(Color.WHITE);
+        button.setPadding(dp(4), 0, dp(4), 0);
+        button.setBackground(rounded(
+                Color.rgb(83, 112, 244),
+                dp(13),
+                Color.TRANSPARENT,
+                0));
+        return button;
     }
 
     private GradientDrawable rounded(int color, float radius, int strokeColor, int strokeWidth) {
@@ -638,6 +801,7 @@ public class LockOverlayActivity extends Activity {
         final LinearLayout row;
         final EditText edit;
         final Spinner category;
+
         EditRow(LinearLayout row, EditText edit, Spinner category) {
             this.row = row;
             this.edit = edit;
@@ -649,17 +813,27 @@ public class LockOverlayActivity extends Activity {
         static final int KIND_TODO = 1;
         static final int KIND_IMAGE = 2;
 
+        private static final int RESIZE_NONE = 0;
+        private static final int RESIZE_TL = 1;
+        private static final int RESIZE_TR = 2;
+        private static final int RESIZE_BL = 3;
+        private static final int RESIZE_BR = 4;
+
         interface GestureListener {
             void onGestureStart(int kind);
             void onGestureEnd(int kind, int startW, int startH);
         }
 
-        private final android.graphics.Paint borderPaint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
-        private final android.graphics.Paint handlePaint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+        private final Paint borderPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint handlePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint arrowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+
         private final int kind;
         private GestureListener listener;
+
         private boolean editing;
-        private boolean resizing;
+        private int resizeCorner = RESIZE_NONE;
+
         private float downRawX;
         private float downRawY;
         private float startX;
@@ -673,59 +847,43 @@ public class LockOverlayActivity extends Activity {
             setWillNotDraw(false);
             setClipChildren(false);
             setClipToPadding(false);
+            setClickable(true);
         }
 
         void setGestureListener(GestureListener value) { listener = value; }
+        boolean isEditing() { return editing; }
 
         void setEditing(boolean value) {
             editing = value;
+            if (!editing) resizeCorner = RESIZE_NONE;
             invalidate();
         }
 
         @Override
         public boolean onInterceptTouchEvent(MotionEvent event) {
-            if (!editing) return false;
-            if (event.getAction() == MotionEvent.ACTION_DOWN) {
-                begin(event);
-                return true;
-            }
-            return true;
+            return editing;
         }
 
         @Override
         public boolean onTouchEvent(MotionEvent event) {
             if (!editing) return super.onTouchEvent(event);
-            if (event.getAction() == MotionEvent.ACTION_DOWN) {
-                begin(event);
-                return true;
+
+            switch (event.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    begin(event);
+                    return true;
+                case MotionEvent.ACTION_MOVE:
+                    updateGesture(event);
+                    return true;
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_CANCEL:
+                    if (listener != null) listener.onGestureEnd(kind, startW, startH);
+                    resizeCorner = RESIZE_NONE;
+                    performClick();
+                    return true;
+                default:
+                    return true;
             }
-            if (event.getAction() == MotionEvent.ACTION_MOVE) {
-                float dx = event.getRawX() - downRawX;
-                float dy = event.getRawY() - downRawY;
-                if (resizing) {
-                    int minW = dpLocal(kind == KIND_TODO ? 240 : 64);
-                    int minH = dpLocal(kind == KIND_TODO ? 150 : 64);
-                    int width = Math.max(minW, Math.round(startW + dx));
-                    int height = Math.max(minH, Math.round(startH + dy));
-                    ViewGroup.LayoutParams lp = getLayoutParams();
-                    lp.width = width;
-                    lp.height = height;
-                    setLayoutParams(lp);
-                } else {
-                    View parent = (View) getParent();
-                    float maxX = Math.max(0, parent.getWidth() - getWidth());
-                    float maxY = Math.max(0, parent.getHeight() - getHeight());
-                    setX(clampLocal(startX + dx, 0, maxX));
-                    setY(clampLocal(startY + dy, 0, maxY));
-                }
-                return true;
-            }
-            if (event.getAction() == MotionEvent.ACTION_UP || event.getAction() == MotionEvent.ACTION_CANCEL) {
-                if (listener != null) listener.onGestureEnd(kind, startW, startH);
-                performClick();
-                return true;
-            }
-            return true;
         }
 
         private void begin(MotionEvent event) {
@@ -735,35 +893,138 @@ public class LockOverlayActivity extends Activity {
             startY = getY();
             startW = getWidth();
             startH = getHeight();
-            int handle = dpLocal(42);
-            resizing = event.getX() >= getWidth() - handle && event.getY() >= getHeight() - handle;
+            resizeCorner = detectResizeCorner(event.getX(), event.getY());
             if (listener != null) listener.onGestureStart(kind);
+        }
+
+        private int detectResizeCorner(float x, float y) {
+            float hit = dpLocal(58);
+            boolean left = x <= hit;
+            boolean right = x >= getWidth() - hit;
+            boolean top = y <= hit;
+            boolean bottom = y >= getHeight() - hit;
+
+            if (left && top) return RESIZE_TL;
+            if (right && top) return RESIZE_TR;
+            if (left && bottom) return RESIZE_BL;
+            if (right && bottom) return RESIZE_BR;
+            return RESIZE_NONE;
+        }
+
+        private void updateGesture(MotionEvent event) {
+            float dx = event.getRawX() - downRawX;
+            float dy = event.getRawY() - downRawY;
+            if (resizeCorner == RESIZE_NONE) moveFrame(dx, dy);
+            else resizeFrame(dx, dy);
+        }
+
+        private void moveFrame(float dx, float dy) {
+            View parent = (View) getParent();
+            float maxX = Math.max(0, parent.getWidth() - getWidth());
+            float maxY = Math.max(0, parent.getHeight() - getHeight());
+            setX(clampLocal(startX + dx, 0, maxX));
+            setY(clampLocal(startY + dy, 0, maxY));
+        }
+
+        private void resizeFrame(float dx, float dy) {
+            View parent = (View) getParent();
+            int parentW = Math.max(1, parent.getWidth());
+            int parentH = Math.max(1, parent.getHeight());
+
+            int minW = dpLocal(kind == KIND_TODO ? 220 : 64);
+            int minH = dpLocal(kind == KIND_TODO ? 170 : 64);
+
+            boolean fromLeft = resizeCorner == RESIZE_TL || resizeCorner == RESIZE_BL;
+            boolean fromTop = resizeCorner == RESIZE_TL || resizeCorner == RESIZE_TR;
+
+            int newW = Math.round(startW + (fromLeft ? -dx : dx));
+            int newH = Math.round(startH + (fromTop ? -dy : dy));
+            newW = clampInt(newW, minW, parentW);
+            newH = clampInt(newH, minH, parentH);
+
+            if (kind == KIND_IMAGE && startW > 0 && startH > 0) {
+                float ratio = startW / (float) startH;
+                float scaleByW = newW / (float) startW;
+                float scaleByH = newH / (float) startH;
+                float scale = Math.max(scaleByW, scaleByH);
+                newW = clampInt(Math.round(startW * scale), minW, parentW);
+                newH = clampInt(Math.round(newW / ratio), minH, parentH);
+                if (newH > parentH) {
+                    newH = parentH;
+                    newW = clampInt(Math.round(newH * ratio), minW, parentW);
+                }
+            }
+
+            float newX = startX;
+            float newY = startY;
+            if (fromLeft) newX = startX + (startW - newW);
+            if (fromTop) newY = startY + (startH - newH);
+
+            newX = clampLocal(newX, 0, Math.max(0, parentW - newW));
+            newY = clampLocal(newY, 0, Math.max(0, parentH - newH));
+
+            ViewGroup.LayoutParams lp = getLayoutParams();
+            lp.width = newW;
+            lp.height = newH;
+            setLayoutParams(lp);
+            setX(newX);
+            setY(newY);
         }
 
         @Override
         protected void dispatchDraw(android.graphics.Canvas canvas) {
             super.dispatchDraw(canvas);
             if (!editing) return;
-            borderPaint.setStyle(android.graphics.Paint.Style.STROKE);
-            borderPaint.setStrokeWidth(dpLocal(2));
-            borderPaint.setColor(Color.rgb(80, 133, 246));
+
             float inset = dpLocal(2);
-            canvas.drawRoundRect(new android.graphics.RectF(inset, inset, getWidth() - inset, getHeight() - inset),
-                    dpLocal(12), dpLocal(12), borderPaint);
-            handlePaint.setStyle(android.graphics.Paint.Style.FILL);
+            borderPaint.setStyle(Paint.Style.STROKE);
+            borderPaint.setStrokeWidth(dpLocal(2.2f));
+            borderPaint.setColor(Color.rgb(74, 124, 245));
+            canvas.drawRoundRect(
+                    new RectF(inset, inset, getWidth() - inset, getHeight() - inset),
+                    dpLocal(13), dpLocal(13), borderPaint);
+
+            drawHandle(canvas, dpLocal(10), dpLocal(10), true, true);
+            drawHandle(canvas, getWidth() - dpLocal(10), dpLocal(10), false, true);
+            drawHandle(canvas, dpLocal(10), getHeight() - dpLocal(10), true, false);
+            drawHandle(canvas, getWidth() - dpLocal(10), getHeight() - dpLocal(10), false, false);
+        }
+
+        private void drawHandle(android.graphics.Canvas canvas, float cx, float cy, boolean left, boolean top) {
+            float r = dpLocal(11);
+
+            handlePaint.setStyle(Paint.Style.FILL);
             handlePaint.setColor(Color.WHITE);
-            handlePaint.setShadowLayer(dpLocal(3), 0, dpLocal(1), Color.argb(70, 0, 0, 0));
-            float r = dpLocal(8);
-            canvas.drawCircle(getWidth() - dpLocal(5), getHeight() - dpLocal(5), r, handlePaint);
+            handlePaint.setShadowLayer(dpLocal(3), 0, dpLocal(1), Color.argb(75, 0, 0, 0));
+            canvas.drawCircle(cx, cy, r, handlePaint);
             handlePaint.clearShadowLayer();
-            handlePaint.setStyle(android.graphics.Paint.Style.STROKE);
+
+            handlePaint.setStyle(Paint.Style.STROKE);
             handlePaint.setStrokeWidth(dpLocal(2));
-            handlePaint.setColor(Color.rgb(80, 133, 246));
-            canvas.drawCircle(getWidth() - dpLocal(5), getHeight() - dpLocal(5), r, handlePaint);
+            handlePaint.setColor(Color.rgb(74, 124, 245));
+            canvas.drawCircle(cx, cy, r, handlePaint);
+
+            float d = dpLocal(4.5f);
+            arrowPaint.setStyle(Paint.Style.STROKE);
+            arrowPaint.setStrokeWidth(dpLocal(1.8f));
+            arrowPaint.setStrokeCap(Paint.Cap.ROUND);
+            arrowPaint.setColor(Color.rgb(74, 124, 245));
+
+            float sx = cx + (left ? d : -d);
+            float sy = cy + (top ? d : -d);
+            float ex = cx + (left ? -d : d);
+            float ey = cy + (top ? -d : d);
+            canvas.drawLine(sx, sy, ex, ey, arrowPaint);
+
+            float head = dpLocal(2.6f);
+            canvas.drawLine(ex, ey, ex + (left ? head : -head), ey, arrowPaint);
+            canvas.drawLine(ex, ey, ex, ey + (top ? head : -head), arrowPaint);
+            arrowPaint.setStrokeCap(Paint.Cap.BUTT);
         }
 
         @Override public boolean performClick() { super.performClick(); return true; }
         private int dpLocal(float value) { return Math.round(value * getResources().getDisplayMetrics().density); }
-        private float clampLocal(float value, float min, float max) { return Math.max(min, Math.min(max, value)); }
+        private static int clampInt(int value, int min, int max) { return Math.max(min, Math.min(max, value)); }
+        private static float clampLocal(float value, float min, float max) { return Math.max(min, Math.min(max, value)); }
     }
 }
