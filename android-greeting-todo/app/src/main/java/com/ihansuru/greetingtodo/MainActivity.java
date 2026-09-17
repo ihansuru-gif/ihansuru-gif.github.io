@@ -37,6 +37,7 @@ public class MainActivity extends Activity {
     private TextView durationValue;
     private TextView overlayState;
     private SeekBar durationSeek;
+    private Switch memoEnabled;
     private Switch enabled;
     private boolean syncing;
     private Bitmap previewBitmap;
@@ -73,7 +74,7 @@ public class MainActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         root.addView(text("인사앱", 29, true, Color.rgb(25, 38, 61)));
-        TextView subtitle = text("화면을 켜는 순간 오늘의 이미지와 투두를 바로 보여줘요", 13, false, Color.rgb(104, 116, 136));
+        TextView subtitle = text("화면을 켜면 투두·메모·이미지를 옆 띠지에서 바로 열 수 있어요", 13, false, Color.rgb(104, 116, 136));
         LinearLayout.LayoutParams subtitleLp = wrap();
         subtitleLp.setMargins(0, dp(4), 0, dp(18));
         root.addView(subtitle, subtitleLp);
@@ -91,9 +92,17 @@ public class MainActivity extends Activity {
         modes.addView(bothMode);
         modeCard.addView(modes, matchWrap(dp(8), 0));
 
+        memoEnabled = new Switch(this);
+        memoEnabled.setText("메모 띠지 사용");
+        memoEnabled.setTextSize(14);
+        memoEnabled.setTextColor(dark());
+        memoEnabled.setGravity(Gravity.CENTER_VERTICAL);
+        modeCard.addView(memoEnabled, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(52)));
+
         Button edit = primary("실제 화면에서 직접 편집");
         modeCard.addView(edit, buttonLp(dp(10)));
-        TextView editHint = caption("표시된 투두의 ⚙️에서 위치·크기·내용을 바로 편집하고, 카테고리는 태그를 눌러 바꿀 수 있어요");
+        TextView editHint = caption("오른쪽 띠지에서 투두·메모·이미지를 펼치고, ⚙️ 또는 띠지 길게 누르기로 위치·크기를 직접 편집해요");
         modeCard.addView(editHint, matchWrap(dp(7), 0));
         root.addView(modeCard, cardLp(0));
 
@@ -176,6 +185,9 @@ public class MainActivity extends Activity {
             updateImageCardVisibility(imageCard);
         });
         edit.setOnClickListener(v -> showDirectEdit());
+        memoEnabled.setOnCheckedChangeListener((button, checked) -> {
+            if (!syncing) Prefs.setMemoEnabled(this, checked);
+        });
         choose.setOnClickListener(v -> pickImage());
         permission.setOnClickListener(v -> openOverlayPermission());
         preview.setOnClickListener(v -> showPreview());
@@ -213,6 +225,7 @@ public class MainActivity extends Activity {
         bothMode.setChecked(Prefs.MODE_BOTH.equals(mode));
         durationSeek.setProgress((int) ((Prefs.duration(this) - 500L) / 100L));
         durationValue.setText(String.format(Locale.KOREAN, "%.1f초", Prefs.duration(this) / 1000f));
+        memoEnabled.setChecked(Prefs.memoEnabled(this));
         enabled.setChecked(Prefs.enabled(this));
         syncing = false;
 
@@ -246,10 +259,6 @@ public class MainActivity extends Activity {
             openOverlayPermission();
             return false;
         }
-        if (Prefs.showImage(this) && !ImageStore.has(this)) {
-            toast("이미지를 먼저 선택해 주세요");
-            return false;
-        }
         return true;
     }
 
@@ -259,7 +268,7 @@ public class MainActivity extends Activity {
             toast("실제 화면을 열지 못했어요");
             return;
         }
-        toast("투두의 ⚙️를 누르면 화면 위에서 바로 이동·크기 조절할 수 있어요");
+        toast("띠지를 길게 누르거나 카드의 ⚙️를 누르면 모서리 끌기·두 손가락 확대/축소를 바로 쓸 수 있어요");
     }
 
     private void showPreview() {
