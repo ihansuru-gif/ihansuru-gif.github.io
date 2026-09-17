@@ -9,7 +9,6 @@ final class OverlayManager {
     static boolean show(Context context) {
         Context app = context.getApplicationContext();
         if (!Settings.canDrawOverlays(app)) return false;
-        if (Prefs.showImage(app) && !ImageStore.has(app)) return false;
         return LockOverlayActivity.launch(app);
     }
 
