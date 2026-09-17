@@ -94,8 +94,7 @@ try {
   assert.match(workflow, /release:\s*\n\s+types: \[published\]/);
   assert.match(workflow, /workflow_dispatch:/);
   assert.match(workflow, /deploy:\s*\n\s+description:/);
-  assert.match(workflow, /compat_probe_release_id:\s*\n\s+description:/);
-  assert.match(workflow, /compat_probe_asset_name:\s*\n\s+description:/);
+  assert.match(workflow, /compat_probe_padding_bytes:\s*\n\s+description:/);
   assert.match(workflow, /dispatch-release:\s*\n\s+if:.*github\.event_name == 'release'/);
   assert.match(workflow, /actions: write/);
   assert.match(workflow, /gh workflow run deploy-daborang\.yml/);
@@ -119,9 +118,10 @@ try {
   assert.match(workflow, /--json isDraft,isPrerelease/);
   assert.match(workflow, /false\\tfalse/);
   assert.match(workflow, /Add optional unpublished legacy compatibility probe/);
-  assert.match(workflow, /inputs\.compat_probe_release_id != '' \|\| inputs\.compat_probe_asset_name != ''/);
-  assert.match(workflow, /\^Dabolang-compat-probe-\[0-9A-Za-z\._-\]\+\\\.exe\$/);
-  assert.match(workflow, /releases\/assets\/\$asset_id/);
+  assert.match(workflow, /inputs\.compat_probe_padding_bytes != ''/);
+  assert.match(workflow, /PROBE_PADDING_BYTES.*inputs\.compat_probe_padding_bytes/);
+  assert.match(workflow, /truncate -s/);
+  assert.match(workflow, /source_size \+ PROBE_PADDING_BYTES/);
   assert.match(workflow, /compat-probe/);
   assert.strictEqual((workflow.match(/gh release download/g) || []).length, 1);
 
