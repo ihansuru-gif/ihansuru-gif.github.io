@@ -8,6 +8,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 final class MemoStore {
@@ -149,7 +150,7 @@ final class MemoStore {
         Memo target = list.get(index);
         target.pinned = !target.pinned;
         long activeId = target.id;
-        list.sort((a, b) -> Boolean.compare(b.pinned, a.pinned));
+        Collections.sort(list, (a, b) -> Boolean.compare(b.pinned, a.pinned));
         save(c, list);
         for (int i = 0; i < list.size(); i++) {
             if (list.get(i).id == activeId) {
