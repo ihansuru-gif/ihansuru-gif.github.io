@@ -905,7 +905,7 @@ public class LockOverlayActivity extends Activity {
         editToolbar.setElevation(dp(16));
 
         TextView hint = label(
-                "직접 편집 · 끌어 이동 · 모서리 잡아당김 · 두 손가락 확대/축소",
+                "직접 편집 · 끌어 이동 · 오른쪽 아래 ↘ 손잡이로 크기 조절 · 두 손가락 확대/축소",
                 12.5f,
                 true,
                 Color.rgb(54, 66, 88));
@@ -1353,10 +1353,12 @@ public class LockOverlayActivity extends Activity {
         private GestureListener listener;
         private CollapseListener collapseListener;
         private TextView collapseButton;
+        private TextView resizeHandle;
         private final android.view.ScaleGestureDetector scaleDetector;
 
         private boolean editing;
         private boolean collapseTouch;
+        private boolean resizeHandleTouch;
         private boolean scaling;
         private int resizeCorner = RESIZE_NONE;
 
@@ -1427,6 +1429,69 @@ public class LockOverlayActivity extends Activity {
             collapseButton.setOnClickListener(v -> {
                 if (collapseListener != null) collapseListener.onCollapse();
             });
+
+            installResizeHandle();
+        }
+
+        private void installResizeHandle() {
+            if (resizeHandle != null) return;
+
+            resizeHandle = new TextView(getContext());
+            resizeHandle.setText("↘");
+            resizeHandle.setTextSize(20f);
+            resizeHandle.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+            resizeHandle.setTextColor(Color.rgb(103, 88, 202));
+            resizeHandle.setGravity(Gravity.CENTER);
+            resizeHandle.setContentDescription("크기 조절 손잡이");
+            resizeHandle.setPadding(0, 0, dpLocal(1), dpLocal(1));
+
+            GradientDrawable bg = new GradientDrawable();
+            bg.setColor(Color.argb(242, 255, 255, 255));
+            bg.setCornerRadius(dpLocal(14));
+            bg.setStroke(dpLocal(1), Color.rgb(183, 174, 232));
+            resizeHandle.setBackground(bg);
+            resizeHandle.setElevation(dpLocal(8));
+
+            FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
+                    dpLocal(48), dpLocal(48),
+                    Gravity.END | Gravity.BOTTOM);
+            lp.setMargins(0, 0, dpLocal(4), dpLocal(4));
+            addView(resizeHandle, lp);
+            resizeHandle.bringToFront();
+
+            resizeHandle.setOnTouchListener((v, event) -> {
+                switch (event.getActionMasked()) {
+                    case MotionEvent.ACTION_DOWN:
+                        resizeHandleTouch = true;
+                        downRawX = event.getRawX();
+                        downRawY = event.getRawY();
+                        startX = getX();
+                        startY = getY();
+                        startW = getWidth();
+                        startH = getHeight();
+                        resizeCorner = RESIZE_BR;
+                        if (listener != null) listener.onGestureStart(kind);
+                        v.setScaleX(.94f);
+                        v.setScaleY(.94f);
+                        return true;
+                    case MotionEvent.ACTION_MOVE:
+                        float dx = event.getRawX() - downRawX;
+                        float dy = event.getRawY() - downRawY;
+                        resizeFrame(dx, dy);
+                        return true;
+                    case MotionEvent.ACTION_UP:
+                    case MotionEvent.ACTION_CANCEL:
+                        v.setScaleX(1f);
+                        v.setScaleY(1f);
+                        if (listener != null) listener.onGestureEnd(kind, startW, startH);
+                        resizeCorner = RESIZE_NONE;
+                        resizeHandleTouch = false;
+                        v.performClick();
+                        return true;
+                    default:
+                        return true;
+                }
+            });
         }
 
         boolean isEditing() { return editing; }
@@ -1435,22 +1500,25 @@ public class LockOverlayActivity extends Activity {
             editing = value;
             if (!editing) resizeCorner = RESIZE_NONE;
             if (collapseButton != null) collapseButton.bringToFront();
+            if (resizeHandle != null) resizeHandle.bringToFront();
             invalidate();
         }
 
         @Override
         public boolean onInterceptTouchEvent(MotionEvent event) {
-            if (!editing) return false;
             if (event.getActionMasked() == MotionEvent.ACTION_DOWN) {
                 collapseTouch = hitCollapse(event.getX(), event.getY());
+                resizeHandleTouch = hitResizeHandle(event.getX(), event.getY());
             }
-            if (collapseTouch) {
+            if (collapseTouch || resizeHandleTouch) {
                 if (event.getActionMasked() == MotionEvent.ACTION_UP
                         || event.getActionMasked() == MotionEvent.ACTION_CANCEL) {
                     collapseTouch = false;
+                    resizeHandleTouch = false;
                 }
                 return false;
             }
+            if (!editing) return false;
             return true;
         }
 
@@ -1461,6 +1529,15 @@ public class LockOverlayActivity extends Activity {
                     && x <= collapseButton.getRight()
                     && y >= collapseButton.getTop()
                     && y <= collapseButton.getBottom();
+        }
+
+        private boolean hitResizeHandle(float x, float y) {
+            return resizeHandle != null
+                    && resizeHandle.getVisibility() == View.VISIBLE
+                    && x >= resizeHandle.getLeft() - dpLocal(8)
+                    && x <= resizeHandle.getRight() + dpLocal(8)
+                    && y >= resizeHandle.getTop() - dpLocal(8)
+                    && y <= resizeHandle.getBottom() + dpLocal(8);
         }
 
         @Override
@@ -1617,6 +1694,7 @@ public class LockOverlayActivity extends Activity {
         protected void dispatchDraw(android.graphics.Canvas canvas) {
             super.dispatchDraw(canvas);
             if (collapseButton != null) collapseButton.bringToFront();
+            if (resizeHandle != null) resizeHandle.bringToFront();
             if (!editing) return;
 
             float inset = dpLocal(2);
@@ -1630,7 +1708,6 @@ public class LockOverlayActivity extends Activity {
             drawHandle(canvas, dpLocal(10), dpLocal(10), true, true);
             drawHandle(canvas, getWidth() - dpLocal(10), dpLocal(10), false, true);
             drawHandle(canvas, dpLocal(10), getHeight() - dpLocal(10), true, false);
-            drawHandle(canvas, getWidth() - dpLocal(10), getHeight() - dpLocal(10), false, false);
         }
 
         private void drawHandle(android.graphics.Canvas canvas, float cx, float cy, boolean left, boolean top) {
