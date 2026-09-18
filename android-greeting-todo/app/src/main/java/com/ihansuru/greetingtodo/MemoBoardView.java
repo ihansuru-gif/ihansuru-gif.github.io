@@ -799,7 +799,6 @@ final class MemoBoardView extends FrameLayout {
 
     private void rebuildChecklist() {
         if (checkRows == null || memos.isEmpty()) return;
-        saveChecklist();
         checkEditors.clear();
         checkRows.removeAllViews();
         MemoStore.Memo m = memos.get(currentIndex);

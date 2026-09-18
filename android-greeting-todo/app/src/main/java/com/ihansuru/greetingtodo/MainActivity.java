@@ -73,7 +73,15 @@ public class MainActivity extends Activity {
         scroll.addView(root, new ScrollView.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
-        root.addView(text("인사앱", 29, true, Color.rgb(25, 38, 61)));
+        LinearLayout titleRow = new LinearLayout(this);
+        titleRow.setGravity(Gravity.CENTER_VERTICAL);
+        titleRow.addView(text("인사앱", 29, true, Color.rgb(25, 38, 61)),
+                new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+        TextView version = text("v1.3.1", 12.5f, true, Color.rgb(117, 103, 214));
+        version.setPadding(dp(10), dp(5), dp(10), dp(5));
+        version.setBackground(rounded(Color.rgb(242, 239, 255), dp(14), Color.rgb(221, 214, 248), 1));
+        titleRow.addView(version);
+        root.addView(titleRow);
         TextView subtitle = text("화면을 켜면 투두·메모·이미지를 옆 띠지에서 바로 열 수 있어요", 13, false, Color.rgb(104, 116, 136));
         LinearLayout.LayoutParams subtitleLp = wrap();
         subtitleLp.setMargins(0, dp(4), 0, dp(18));
@@ -105,6 +113,23 @@ public class MainActivity extends Activity {
         TextView editHint = caption("오른쪽 띠지에서 투두·메모·이미지를 펼치고, ⚙️ 또는 띠지 길게 누르기로 위치·크기를 직접 편집해요");
         modeCard.addView(editHint, matchWrap(dp(7), 0));
         root.addView(modeCard, cardLp(0));
+
+        LinearLayout memoCard = card();
+        LinearLayout memoHeader = new LinearLayout(this);
+        memoHeader.setGravity(Gravity.CENTER_VERTICAL);
+        memoHeader.addView(text("메모 기능", 16, true, dark()),
+                new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+        TextView updated = text("1.3.1 적용", 11.5f, true, Color.rgb(111, 88, 204));
+        updated.setPadding(dp(10), dp(4), dp(10), dp(4));
+        updated.setBackground(rounded(Color.rgb(242, 238, 255), dp(13), Color.rgb(220, 211, 249), 1));
+        memoHeader.addView(updated);
+        memoCard.addView(memoHeader);
+        memoCard.addView(caption("텍스트 서식 · 체크리스트 · 검색 · 태그 · 보관함"));
+        memoCard.addView(caption("이미지 · 링크 · 펜/연필/형광펜 · Undo/Redo · 무지/줄/격자"));
+        memoCard.addView(caption("음성메모 녹음 · 일시정지 · 재생 · 탐색 · 삭제"));
+        Button openMemo = softButton("메모 바로 열기");
+        memoCard.addView(openMemo, buttonLp(dp(10)));
+        root.addView(memoCard, cardLp(dp(12)));
 
         LinearLayout imageCard = card();
         LinearLayout imageHeader = new LinearLayout(this);
@@ -185,6 +210,14 @@ public class MainActivity extends Activity {
             updateImageCardVisibility(imageCard);
         });
         edit.setOnClickListener(v -> showDirectEdit());
+        openMemo.setOnClickListener(v -> {
+            Prefs.setMemoEnabled(this, true);
+            Prefs.setMemoExpanded(this, true);
+            syncing = true;
+            memoEnabled.setChecked(true);
+            syncing = false;
+            showPreview();
+        });
         memoEnabled.setOnCheckedChangeListener((button, checked) -> {
             if (!syncing) Prefs.setMemoEnabled(this, checked);
         });
