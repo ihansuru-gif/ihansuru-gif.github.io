@@ -14,9 +14,6 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      ANDROID_HOME: /usr/local/lib/android/sdk
-      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
     steps:
       - name: Checkout build branch
         uses: actions/checkout@v4
@@ -27,34 +24,21 @@ jobs:
           distribution: temurin
           java-version: "17"
 
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          packages: ""
+
+      - name: Install Android platform
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager --install "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.9"
-
-      - name: Resolve Android SDK
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "ANDROID_HOME=$ANDROID_HOME"
-          echo "Installed platforms:"
-          ls -1 "$ANDROID_HOME/platforms" 2>/dev/null || true
-          echo "Installed build tools:"
-          ls -1 "$ANDROID_HOME/build-tools" 2>/dev/null || true
-
-          SDKMANAGER="$(find "$ANDROID_HOME" -type f -name sdkmanager -perm -111 2>/dev/null | head -n 1 || true)"
-          if [ -n "$SDKMANAGER" ]; then
-            echo "sdkmanager=$SDKMANAGER"
-            if [ ! -d "$ANDROID_HOME/platforms/android-35" ] || [ ! -d "$ANDROID_HOME/build-tools/35.0.0" ]; then
-              yes | "$SDKMANAGER" --licenses >/dev/null 2>&1 || true
-              "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0"
-            fi
-          else
-            echo "No sdkmanager found; relying on preinstalled SDK packages"
-          fi
-
-          test -d "$ANDROID_HOME/platforms/android-35"
-          test -d "$ANDROID_HOME/build-tools/35.0.0"
 
       - name: Reconstruct APK Broom project
         shell: bash
@@ -116,5 +100,3 @@ jobs:
           git add apkbroom-build-result.json
           git commit -m "APK Broom build result [skip ci]" || true
           git push origin HEAD:apkbroom-build-20260918 || true
-
-# build trigger 2
