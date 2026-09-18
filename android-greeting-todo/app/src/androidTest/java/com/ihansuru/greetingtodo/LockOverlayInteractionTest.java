@@ -38,6 +38,7 @@ public class LockOverlayInteractionTest {
                 .edit().clear().commit();
 
         Prefs.resetLayout(context);
+        Prefs.setDuration(context, 10_000L);
         Prefs.setEnabled(context, false);
         Prefs.setTodoTabEnabled(context, true);
         Prefs.setCalendarEnabled(context, true);
