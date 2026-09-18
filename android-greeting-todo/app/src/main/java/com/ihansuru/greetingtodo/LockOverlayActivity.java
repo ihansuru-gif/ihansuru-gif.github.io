@@ -10,6 +10,7 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.RectF;
 import android.graphics.Typeface;
+import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Build;
@@ -18,6 +19,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.text.Editable;
 import android.text.TextWatcher;
+import android.graphics.PixelFormat;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
@@ -238,11 +240,19 @@ public class LockOverlayActivity extends Activity {
         } else {
             window.addFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED);
         }
-        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+                | WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER);
+        window.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+        window.setDimAmount(0f);
+        window.setFormat(PixelFormat.TRANSLUCENT);
+        window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        window.getDecorView().setBackgroundColor(Color.TRANSPARENT);
         window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             window.setStatusBarColor(Color.TRANSPARENT);
-            window.setNavigationBarColor(Color.argb(36, 0, 0, 0));
+            window.setNavigationBarColor(Color.TRANSPARENT);
         }
     }
 
@@ -394,18 +404,18 @@ public class LockOverlayActivity extends Activity {
                 dp(1)));
         tabRail.setElevation(dp(14));
 
-        todoTab = sideTab("✓\n투두");
-        calendarTab = sideTab("▣\n일정");
-        memoTab = sideTab("✎\n메모");
-        imageTab = sideTab("▧\n이미지");
+        todoTab = sideTab("✓\n투두", "todo");
+        calendarTab = sideTab("▣\n일정", "calendar");
+        memoTab = sideTab("✎\n메모", "memo");
+        imageTab = sideTab("▧\n이미지", "image");
 
         int scale = Prefs.tabSize(this);
         int tabW = Math.max(dp(42), Math.round(dp(52) * scale / 100f));
         int tabH = Math.max(dp(50), Math.round(dp(62) * scale / 100f));
 
-        if (Prefs.todoTabEnabled(this)) addRailTab(todoTab, tabW, tabH);
         for (String key : Prefs.tabOrder(this)) {
-            if ("calendar".equals(key) && Prefs.calendarEnabled(this)) addRailTab(calendarTab, tabW, tabH);
+            if ("todo".equals(key) && Prefs.todoTabEnabled(this)) addRailTab(todoTab, tabW, tabH);
+            else if ("calendar".equals(key) && Prefs.calendarEnabled(this)) addRailTab(calendarTab, tabW, tabH);
             else if ("memo".equals(key) && Prefs.memoEnabled(this)) addRailTab(memoTab, tabW, tabH);
             else if ("image".equals(key) && Prefs.imageTabEnabled(this)) addRailTab(imageTab, tabW, tabH);
         }
@@ -444,18 +454,35 @@ public class LockOverlayActivity extends Activity {
         tabRail.addView(tab, lp);
     }
 
-    private TextView sideTab(String label) {
+    private TextView sideTab(String label, String key) {
         TextView v = new TextView(this);
         v.setText(label);
         v.setTextSize(11.5f);
         v.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        v.setTextColor(Color.rgb(62, 72, 95));
         v.setGravity(Gravity.CENTER);
-        v.setBackground(rounded(
-                Color.rgb(248, 246, 255),
-                dp(14),
-                Color.rgb(219, 214, 239),
-                dp(1)));
+
+        int fill;
+        int stroke;
+        int text;
+        if ("todo".equals(key)) {
+            fill = Color.rgb(235, 243, 255);
+            stroke = Color.rgb(170, 195, 240);
+            text = Color.rgb(72, 107, 184);
+        } else if ("calendar".equals(key)) {
+            fill = Color.rgb(241, 237, 255);
+            stroke = Color.rgb(197, 184, 241);
+            text = Color.rgb(111, 91, 187);
+        } else if ("memo".equals(key)) {
+            fill = Color.rgb(255, 241, 231);
+            stroke = Color.rgb(235, 199, 173);
+            text = Color.rgb(167, 103, 65);
+        } else {
+            fill = Color.rgb(232, 246, 239);
+            stroke = Color.rgb(177, 215, 199);
+            text = Color.rgb(61, 126, 101);
+        }
+        v.setTextColor(text);
+        v.setBackground(rounded(fill, dp(14), stroke, dp(1)));
         v.setElevation(dp(2));
         return v;
     }
@@ -688,14 +715,14 @@ public class LockOverlayActivity extends Activity {
 
         int width = clamp(
                 Math.round(sw * Prefs.todoWidth(this) / 100f),
-                dp(220),
+                Math.min(dp(250), Math.round(sw * .96f)),
                 Math.round(sw * .96f));
 
         todoWidget.refresh();
         int storedHeight = Prefs.todoHeight(this);
         int height;
         if (storedHeight > 0) {
-            height = clamp(Math.round(sh * storedHeight / 100f), dp(170), Math.round(sh * .90f));
+            height = clamp(Math.round(sh * storedHeight / 100f), Math.min(dp(220), Math.round(sh * .90f)), Math.round(sh * .90f));
             todoWidget.measure(
                     View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
                     View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY));
@@ -706,7 +733,7 @@ public class LockOverlayActivity extends Activity {
             height = Math.min(todoWidget.getMeasuredHeight(), Math.round(sh * .86f));
         }
 
-        todoFrame.setLayoutParams(new FrameLayout.LayoutParams(width, Math.max(dp(170), height)));
+        todoFrame.setLayoutParams(new FrameLayout.LayoutParams(width, Math.max(Math.min(dp(220), Math.round(sh * .90f)), height)));
         todoWidget.setLayoutParams(new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT));
@@ -720,8 +747,10 @@ public class LockOverlayActivity extends Activity {
         int sh = root.getHeight();
         if (sw <= 0 || sh <= 0 || calendarFrame == null || calendarBoard == null) return;
 
-        int width = clamp(Math.round(sw * Prefs.calendarWidth(this) / 100f), dp(260), Math.round(sw * .96f));
-        int height = clamp(Math.round(sh * Prefs.calendarHeight(this) / 100f), dp(300), Math.round(sh * .90f));
+        int width = clamp(Math.round(sw * Prefs.calendarWidth(this) / 100f),
+                Math.min(dp(330), Math.round(sw * .96f)), Math.round(sw * .96f));
+        int height = clamp(Math.round(sh * Prefs.calendarHeight(this) / 100f),
+                Math.min(dp(320), Math.round(sh * .90f)), Math.round(sh * .90f));
 
         calendarFrame.setLayoutParams(new FrameLayout.LayoutParams(width, height));
         calendarBoard.setLayoutParams(new FrameLayout.LayoutParams(
@@ -738,8 +767,10 @@ public class LockOverlayActivity extends Activity {
         int sh = root.getHeight();
         if (sw <= 0 || sh <= 0 || memoFrame == null || memoBoard == null) return;
 
-        int width = clamp(Math.round(sw * Prefs.memoWidth(this) / 100f), dp(220), Math.round(sw * .96f));
-        int height = clamp(Math.round(sh * Prefs.memoHeight(this) / 100f), dp(230), Math.round(sh * .88f));
+        int width = clamp(Math.round(sw * Prefs.memoWidth(this) / 100f),
+                Math.min(dp(292), Math.round(sw * .96f)), Math.round(sw * .96f));
+        int height = clamp(Math.round(sh * Prefs.memoHeight(this) / 100f),
+                Math.min(dp(280), Math.round(sh * .88f)), Math.round(sh * .88f));
 
         memoFrame.setLayoutParams(new FrameLayout.LayoutParams(width, height));
         memoBoard.setLayoutParams(new FrameLayout.LayoutParams(
@@ -905,7 +936,7 @@ public class LockOverlayActivity extends Activity {
         editToolbar.setElevation(dp(16));
 
         TextView hint = label(
-                "직접 편집 · 끌어 이동 · 오른쪽 아래 ↘ 손잡이로 크기 조절 · 두 손가락 확대/축소",
+                "직접 편집 · 끌어 이동 · 오른쪽 아래 // 손잡이로 크기 조절 · 두 손가락 확대/축소",
                 12.5f,
                 true,
                 Color.rgb(54, 66, 88));
@@ -1437,25 +1468,19 @@ public class LockOverlayActivity extends Activity {
             if (resizeHandle != null) return;
 
             resizeHandle = new TextView(getContext());
-            resizeHandle.setText("↘");
-            resizeHandle.setTextSize(20f);
+            resizeHandle.setText("╱╱");
+            resizeHandle.setTextSize(10.5f);
             resizeHandle.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-            resizeHandle.setTextColor(Color.rgb(103, 88, 202));
-            resizeHandle.setGravity(Gravity.CENTER);
+            resizeHandle.setTextColor(Color.argb(185, 89, 83, 118));
+            resizeHandle.setGravity(Gravity.END | Gravity.BOTTOM);
             resizeHandle.setContentDescription("크기 조절 손잡이");
-            resizeHandle.setPadding(0, 0, dpLocal(1), dpLocal(1));
-
-            GradientDrawable bg = new GradientDrawable();
-            bg.setColor(Color.argb(242, 255, 255, 255));
-            bg.setCornerRadius(dpLocal(14));
-            bg.setStroke(dpLocal(1), Color.rgb(183, 174, 232));
-            resizeHandle.setBackground(bg);
-            resizeHandle.setElevation(dpLocal(8));
+            resizeHandle.setPadding(0, 0, dpLocal(3), dpLocal(3));
+            resizeHandle.setBackgroundColor(Color.TRANSPARENT);
 
             FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
-                    dpLocal(48), dpLocal(48),
+                    dpLocal(34), dpLocal(34),
                     Gravity.END | Gravity.BOTTOM);
-            lp.setMargins(0, 0, dpLocal(4), dpLocal(4));
+            lp.setMargins(0, 0, dpLocal(1), dpLocal(1));
             addView(resizeHandle, lp);
             resizeHandle.bringToFront();
 
@@ -1471,18 +1496,12 @@ public class LockOverlayActivity extends Activity {
                         startH = getHeight();
                         resizeCorner = RESIZE_BR;
                         if (listener != null) listener.onGestureStart(kind);
-                        v.setScaleX(.94f);
-                        v.setScaleY(.94f);
                         return true;
                     case MotionEvent.ACTION_MOVE:
-                        float dx = event.getRawX() - downRawX;
-                        float dy = event.getRawY() - downRawY;
-                        resizeFrame(dx, dy);
+                        resizeFrame(event.getRawX() - downRawX, event.getRawY() - downRawY);
                         return true;
                     case MotionEvent.ACTION_UP:
                     case MotionEvent.ACTION_CANCEL:
-                        v.setScaleX(1f);
-                        v.setScaleY(1f);
                         if (listener != null) listener.onGestureEnd(kind, startW, startH);
                         resizeCorner = RESIZE_NONE;
                         resizeHandleTouch = false;
@@ -1534,10 +1553,10 @@ public class LockOverlayActivity extends Activity {
         private boolean hitResizeHandle(float x, float y) {
             return resizeHandle != null
                     && resizeHandle.getVisibility() == View.VISIBLE
-                    && x >= resizeHandle.getLeft() - dpLocal(8)
-                    && x <= resizeHandle.getRight() + dpLocal(8)
-                    && y >= resizeHandle.getTop() - dpLocal(8)
-                    && y <= resizeHandle.getBottom() + dpLocal(8);
+                    && x >= resizeHandle.getLeft() - dpLocal(5)
+                    && x <= resizeHandle.getRight() + dpLocal(5)
+                    && y >= resizeHandle.getTop() - dpLocal(5)
+                    && y <= resizeHandle.getBottom() + dpLocal(5);
         }
 
         @Override
@@ -1617,8 +1636,14 @@ public class LockOverlayActivity extends Activity {
             int parentW = Math.max(1, parent.getWidth());
             int parentH = Math.max(1, parent.getHeight());
 
-            int minW = dpLocal(kind == KIND_IMAGE ? 64 : kind == KIND_CALENDAR ? 260 : 220);
-            int minH = dpLocal(kind == KIND_IMAGE ? 64 : kind == KIND_CALENDAR ? 300 : kind == KIND_MEMO ? 230 : 170);
+            int requestedMinW = dpLocal(kind == KIND_IMAGE ? 64
+                    : kind == KIND_CALENDAR ? 330
+                    : kind == KIND_MEMO ? 292 : 250);
+            int requestedMinH = dpLocal(kind == KIND_IMAGE ? 64
+                    : kind == KIND_CALENDAR ? 320
+                    : kind == KIND_MEMO ? 280 : 220);
+            int minW = Math.min(requestedMinW, parentW);
+            int minH = Math.min(requestedMinH, parentH);
 
             boolean fromLeft = resizeCorner == RESIZE_TL || resizeCorner == RESIZE_BL;
             boolean fromTop = resizeCorner == RESIZE_TL || resizeCorner == RESIZE_TR;
@@ -1663,8 +1688,14 @@ public class LockOverlayActivity extends Activity {
 
             int parentW = Math.max(1, parent.getWidth());
             int parentH = Math.max(1, parent.getHeight());
-            int minW = dpLocal(kind == KIND_IMAGE ? 64 : kind == KIND_CALENDAR ? 260 : 220);
-            int minH = dpLocal(kind == KIND_IMAGE ? 64 : kind == KIND_CALENDAR ? 300 : kind == KIND_MEMO ? 230 : 170);
+            int requestedMinW = dpLocal(kind == KIND_IMAGE ? 64
+                    : kind == KIND_CALENDAR ? 330
+                    : kind == KIND_MEMO ? 292 : 250);
+            int requestedMinH = dpLocal(kind == KIND_IMAGE ? 64
+                    : kind == KIND_CALENDAR ? 320
+                    : kind == KIND_MEMO ? 280 : 220);
+            int minW = Math.min(requestedMinW, parentW);
+            int minH = Math.min(requestedMinH, parentH);
 
             float cx = getX() + getWidth() / 2f;
             float cy = getY() + getHeight() / 2f;

@@ -70,9 +70,7 @@ final class Prefs {
 
     static boolean todoTabEnabled(Context c) {
         SharedPreferences p = normal(c);
-        if (p.contains("tab_todo")) return p.getBoolean("tab_todo", true);
-        String m = mode(c);
-        return MODE_TODO.equals(m) || MODE_BOTH.equals(m);
+        return p.contains("tab_todo") ? p.getBoolean("tab_todo", true) : true;
     }
     static void setTodoTabEnabled(Context c, boolean v) {
         normal(c).edit().putBoolean("tab_todo", v).apply();
@@ -117,15 +115,18 @@ final class Prefs {
     static void setTabSize(Context c, int v) { normal(c).edit().putInt("tab_size", clamp(v, 75, 135)).apply(); }
 
     static List<String> tabOrder(Context c) {
-        String raw = normal(c).getString("tab_order", "calendar,memo,image");
+        String raw = normal(c).getString("tab_order", "todo,calendar,memo,image");
         ArrayList<String> out = new ArrayList<>();
         if (raw != null) {
             for (String key : raw.split(",")) {
-                if (("calendar".equals(key) || "memo".equals(key) || "image".equals(key))
+                if (("todo".equals(key) || "calendar".equals(key)
+                        || "memo".equals(key) || "image".equals(key))
                         && !out.contains(key)) out.add(key);
             }
         }
-        for (String key : Arrays.asList("calendar", "memo", "image")) if (!out.contains(key)) out.add(key);
+        for (String key : Arrays.asList("todo", "calendar", "memo", "image")) {
+            if (!out.contains(key)) out.add(key);
+        }
         return out;
     }
 

@@ -75,7 +75,7 @@ public class MainActivity extends Activity {
         titleRow.setGravity(Gravity.CENTER_VERTICAL);
         titleRow.addView(text("인사앱", 29, true, Color.rgb(28, 38, 58)),
                 new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
-        TextView version = text("v1.4.1", 12.5f, true, Color.rgb(112, 94, 202));
+        TextView version = text("v1.4.2", 12.5f, true, Color.rgb(112, 94, 202));
         version.setPadding(dp(10), dp(5), dp(10), dp(5));
         version.setBackground(rounded(Color.rgb(242, 239, 255), dp(14), Color.rgb(222, 215, 247), 1));
         titleRow.addView(version);
@@ -90,7 +90,7 @@ public class MainActivity extends Activity {
 
         LinearLayout tabsCard = card();
         tabsCard.addView(text("띠지 관리", 17, true, dark()));
-        tabsCard.addView(caption("보일 기능을 직접 고르고 순서를 정해요 · 투두는 항상 맨 위"));
+        tabsCard.addView(caption("보일 기능을 직접 고르고 네 띠지 순서를 정해요"));
         tabRows = new LinearLayout(this);
         tabRows.setOrientation(LinearLayout.VERTICAL);
         LinearLayout.LayoutParams trlp = new LinearLayout.LayoutParams(
@@ -114,7 +114,7 @@ public class MainActivity extends Activity {
         Button edit = primary("실제 화면에서 위치·크기 편집");
         tabsCard.addView(edit, buttonLp(dp(8)));
         tabsCard.addView(caption(
-                "각 카드 오른쪽 아래 ↘ 손잡이를 바로 끌어 크기를 조절하고 › 버튼으로 자기 띠지에 접어요"),
+                "각 카드 오른쪽 아래 작은 // 손잡이로 크기를 조절하고 › 버튼으로 자기 띠지에 접어요"),
                 matchWrap(dp(6), 0));
         root.addView(tabsCard, cardLp(0));
 
@@ -259,24 +259,28 @@ public class MainActivity extends Activity {
     private void rebuildTabRows() {
         if (tabRows == null) return;
         tabRows.removeAllViews();
-        tabRows.addView(tabRow("todo", "✓  투두", Prefs.todoTabEnabled(this), true));
 
-        List<String> order = Prefs.tabOrder(this);
-        for (String key : order) {
-            if ("calendar".equals(key)) {
-                tabRows.addView(tabRow(key, "▣  일정", Prefs.calendarEnabled(this), false));
+        for (String key : Prefs.tabOrder(this)) {
+            if ("todo".equals(key)) {
+                tabRows.addView(tabRow(key, "✓  투두", Prefs.todoTabEnabled(this)));
+            } else if ("calendar".equals(key)) {
+                tabRows.addView(tabRow(key, "▣  일정", Prefs.calendarEnabled(this)));
             } else if ("memo".equals(key)) {
-                tabRows.addView(tabRow(key, "✎  메모", Prefs.memoEnabled(this), false));
+                tabRows.addView(tabRow(key, "✎  메모", Prefs.memoEnabled(this)));
             } else if ("image".equals(key)) {
-                tabRows.addView(tabRow(key, "▧  이미지", Prefs.imageTabEnabled(this), false));
+                tabRows.addView(tabRow(key, "▧  이미지", Prefs.imageTabEnabled(this)));
             }
         }
     }
 
-    private View tabRow(String key, String label, boolean checked, boolean fixed) {
+    private View tabRow(String key, String label, boolean checked) {
         LinearLayout row = new LinearLayout(this);
         row.setGravity(Gravity.CENTER_VERTICAL);
         row.setPadding(dp(3), dp(2), dp(3), dp(2));
+
+        int accent = tabAccent(key);
+        int surface = tabSurface(key);
+        row.setBackground(rounded(surface, dp(15), blendColor(surface, accent, .20f), 1));
 
         Switch toggle = new Switch(this);
         toggle.setText(label);
@@ -285,25 +289,24 @@ public class MainActivity extends Activity {
         toggle.setChecked(checked);
         row.addView(toggle, new LinearLayout.LayoutParams(0, dp(48), 1));
 
-        if (fixed) {
-            TextView pin = text("맨 위 고정", 11.5f, true, Color.rgb(129, 119, 168));
-            row.addView(pin, new LinearLayout.LayoutParams(dp(78), dp(42)));
-        } else {
-            Button up = softButton("↑");
-            Button down = softButton("↓");
-            row.addView(up, new LinearLayout.LayoutParams(dp(42), dp(40)));
-            LinearLayout.LayoutParams dlp = new LinearLayout.LayoutParams(dp(42), dp(40));
-            dlp.setMargins(dp(3), 0, 0, 0);
-            row.addView(down, dlp);
-            up.setOnClickListener(v -> {
-                Prefs.moveTab(this, key, -1);
-                rebuildTabRows();
-            });
-            down.setOnClickListener(v -> {
-                Prefs.moveTab(this, key, 1);
-                rebuildTabRows();
-            });
-        }
+        Button up = softButton("↑");
+        Button down = softButton("↓");
+        up.setTextColor(accent);
+        down.setTextColor(accent);
+        up.setBackground(rounded(Color.argb(230,255,255,255), dp(12), blendColor(Color.WHITE, accent, .24f), 1));
+        down.setBackground(rounded(Color.argb(230,255,255,255), dp(12), blendColor(Color.WHITE, accent, .24f), 1));
+        row.addView(up, new LinearLayout.LayoutParams(dp(42), dp(40)));
+        LinearLayout.LayoutParams dlp = new LinearLayout.LayoutParams(dp(42), dp(40));
+        dlp.setMargins(dp(3), 0, 0, 0);
+        row.addView(down, dlp);
+        up.setOnClickListener(v -> {
+            Prefs.moveTab(this, key, -1);
+            rebuildTabRows();
+        });
+        down.setOnClickListener(v -> {
+            Prefs.moveTab(this, key, 1);
+            rebuildTabRows();
+        });
 
         toggle.setOnCheckedChangeListener((button, value) -> {
             if ("todo".equals(key)) Prefs.setTodoTabEnabled(this, value);
@@ -312,7 +315,33 @@ public class MainActivity extends Activity {
             else if ("image".equals(key)) Prefs.setImageTabEnabled(this, value);
         });
 
+        LinearLayout.LayoutParams rowLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(54));
+        rowLp.setMargins(0, dp(3), 0, dp(3));
+        row.setLayoutParams(rowLp);
         return row;
+    }
+
+    private int tabAccent(String key) {
+        if ("todo".equals(key)) return Color.rgb(88, 126, 214);
+        if ("calendar".equals(key)) return Color.rgb(126, 101, 211);
+        if ("memo".equals(key)) return Color.rgb(184, 117, 75);
+        return Color.rgb(75, 139, 114);
+    }
+
+    private int tabSurface(String key) {
+        if ("todo".equals(key)) return Color.rgb(237, 244, 255);
+        if ("calendar".equals(key)) return Color.rgb(242, 238, 255);
+        if ("memo".equals(key)) return Color.rgb(255, 243, 233);
+        return Color.rgb(234, 246, 240);
+    }
+
+    private int blendColor(int a, int b, float amount) {
+        float t = Math.max(0f, Math.min(1f, amount));
+        return Color.rgb(
+                Math.round(Color.red(a) * (1f - t) + Color.red(b) * t),
+                Math.round(Color.green(a) * (1f - t) + Color.green(b) * t),
+                Math.round(Color.blue(a) * (1f - t) + Color.blue(b) * t));
     }
 
     private void syncUi() {
