@@ -52,7 +52,12 @@ jobs:
           arch: x86_64
           profile: pixel_6
           disable-animations: true
-          script: cd android-greeting-todo && gradle --no-daemon :app:connectedDebugAndroidTest
+          script: |
+            adb shell input keyevent KEYCODE_WAKEUP
+            adb shell wm dismiss-keyguard || true
+            adb shell settings put system screen_off_timeout 2147483647
+            cd android-greeting-todo
+            gradle --no-daemon :app:connectedDebugAndroidTest
 
       - name: Prepare APK
         run: |
