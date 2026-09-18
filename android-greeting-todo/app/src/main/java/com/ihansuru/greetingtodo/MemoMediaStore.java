@@ -77,7 +77,7 @@ final class MemoMediaStore {
         } catch (Exception e) {
             return "0:00";
         } finally {
-            try { r.release(); } catch (RuntimeException ignored) {}
+            try { r.release(); } catch (Exception ignored) {}
         }
     }
 }
