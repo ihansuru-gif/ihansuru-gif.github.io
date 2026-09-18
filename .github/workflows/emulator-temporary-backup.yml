@@ -1,0 +1,43 @@
+name: Temporary offline Android emulator tools
+on:
+  push:
+    branches: ['build/five-gather-sdk-tools-20260918']
+    paths: ['.github/workflows/emulator-temporary-backup.yml']
+permissions:
+  contents: read
+jobs:
+  emulator-tools:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: ''
+      - name: Install official offline emulator packages
+        run: sdkmanager --install 'emulator' 'system-images;android-30;default;x86_64'
+      - name: Back up original emulator and blank system image
+        run: |
+          set -euo pipefail
+          mkdir -p tools-backup image-backup
+          tar -czf tools-backup/android-emulator-backup.tar.gz -C "$ANDROID_HOME" emulator
+          tar -czf image-backup/android30-blank-image-backup.tar.gz -C "$ANDROID_HOME" system-images/android-30/default/x86_64
+          sha256sum tools-backup/*.tar.gz > tools-backup/SHA256SUMS.txt
+          sha256sum image-backup/*.tar.gz > image-backup/SHA256SUMS.txt
+          ls -lh tools-backup image-backup
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Android-emulator-temporary-tools
+          path: tools-backup/
+          compression-level: 0
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Android30-temporary-blank-image
+          path: image-backup/
+          compression-level: 0
+          retention-days: 1
