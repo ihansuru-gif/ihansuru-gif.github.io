@@ -200,6 +200,7 @@ public class LockOverlayActivity extends Activity {
         imageFrame.addView(imageView, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT));
+        imageFrame.enableCollapse(() -> collapseImage());
         root.addView(imageFrame);
     }
 
@@ -239,6 +240,7 @@ public class LockOverlayActivity extends Activity {
         todoFrame.addView(todoWidget, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT));
+        todoFrame.enableCollapse(() -> collapseTodo());
         root.addView(todoFrame);
     }
 
@@ -266,6 +268,7 @@ public class LockOverlayActivity extends Activity {
         memoFrame.addView(memoBoard, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT));
+        memoFrame.enableCollapse(() -> collapseMemo());
         root.addView(memoFrame);
     }
 
@@ -334,30 +337,22 @@ public class LockOverlayActivity extends Activity {
     }
 
     private void toggleTodo() {
-        if (todoFrame == null) {
-            buildTodoObject();
-            if (root.getWidth() > 0) layoutTodoFrame(true);
-            todoFrame.setVisibility(View.VISIBLE);
-        } else {
-            todoFrame.setVisibility(todoFrame.getVisibility() == View.VISIBLE ? View.GONE : View.VISIBLE);
+        if (todoFrame != null && todoFrame.getVisibility() == View.VISIBLE) {
+            collapseTodo();
+            return;
         }
-        Prefs.setTodoExpanded(this, todoFrame != null && todoFrame.getVisibility() == View.VISIBLE);
-        updateTabStates();
-        if (tabRail != null) tabRail.bringToFront();
+        ensureTodoVisible();
+        animateExpand(todoFrame, todoTab);
     }
 
     private void toggleMemo() {
         if (!Prefs.memoEnabled(this)) return;
-        if (memoFrame == null) {
-            buildMemoObject();
-            if (root.getWidth() > 0) layoutMemoFrame(true);
-            if (memoFrame != null) memoFrame.setVisibility(View.VISIBLE);
-        } else {
-            memoFrame.setVisibility(memoFrame.getVisibility() == View.VISIBLE ? View.GONE : View.VISIBLE);
+        if (memoFrame != null && memoFrame.getVisibility() == View.VISIBLE) {
+            collapseMemo();
+            return;
         }
-        Prefs.setMemoExpanded(this, memoFrame != null && memoFrame.getVisibility() == View.VISIBLE);
-        updateTabStates();
-        if (tabRail != null) tabRail.bringToFront();
+        ensureMemoVisible();
+        animateExpand(memoFrame, memoTab);
     }
 
     private void toggleImage() {
@@ -365,16 +360,101 @@ public class LockOverlayActivity extends Activity {
             Toast.makeText(this, "앱에서 이미지를 먼저 선택해 주세요", Toast.LENGTH_SHORT).show();
             return;
         }
-        if (imageFrame == null) {
-            buildImageObject();
-            if (root.getWidth() > 0) layoutImageFrame(true);
-            if (imageFrame != null) imageFrame.setVisibility(View.VISIBLE);
-        } else {
-            imageFrame.setVisibility(imageFrame.getVisibility() == View.VISIBLE ? View.GONE : View.VISIBLE);
+        if (imageFrame != null && imageFrame.getVisibility() == View.VISIBLE) {
+            collapseImage();
+            return;
         }
-        Prefs.setImageExpanded(this, imageFrame != null && imageFrame.getVisibility() == View.VISIBLE);
-        updateTabStates();
+        ensureImageVisible();
+        animateExpand(imageFrame, imageTab);
+    }
+
+    private void collapseTodo() {
+        if (todoFrame == null || todoFrame.getVisibility() != View.VISIBLE) return;
+        if (directEditing) exitDirectEdit();
+        Prefs.setTodoExpanded(this, false);
+        animateCollapse(todoFrame, todoTab);
+    }
+
+    private void collapseMemo() {
+        if (memoFrame == null || memoFrame.getVisibility() != View.VISIBLE) return;
+        if (directEditing) exitDirectEdit();
+        Prefs.setMemoExpanded(this, false);
+        animateCollapse(memoFrame, memoTab);
+    }
+
+    private void collapseImage() {
+        if (imageFrame == null || imageFrame.getVisibility() != View.VISIBLE) return;
+        if (directEditing) exitDirectEdit();
+        Prefs.setImageExpanded(this, false);
+        animateCollapse(imageFrame, imageTab);
+    }
+
+    private void animateCollapse(View frame, View tab) {
+        if (frame == null) return;
+        pause("collapse_animation");
+        float dx = collapseTargetX(frame, tab);
+        float dy = collapseTargetY(frame, tab);
+        frame.animate().cancel();
+        frame.animate()
+                .translationX(dx)
+                .translationY(dy)
+                .scaleX(.18f)
+                .scaleY(.18f)
+                .alpha(.06f)
+                .setDuration(220L)
+                .withEndAction(() -> {
+                    frame.setVisibility(View.GONE);
+                    frame.setTranslationX(0f);
+                    frame.setTranslationY(0f);
+                    frame.setScaleX(1f);
+                    frame.setScaleY(1f);
+                    frame.setAlpha(1f);
+                    updateTabStates();
+                    if (tabRail != null) tabRail.bringToFront();
+                    resume("collapse_animation");
+                })
+                .start();
+    }
+
+    private void animateExpand(View frame, View tab) {
+        if (frame == null) return;
+        pause("expand_animation");
+        frame.animate().cancel();
+        frame.setVisibility(View.VISIBLE);
+        frame.setScaleX(.18f);
+        frame.setScaleY(.18f);
+        frame.setAlpha(.06f);
+        frame.setTranslationX(collapseTargetX(frame, tab));
+        frame.setTranslationY(collapseTargetY(frame, tab));
+        frame.bringToFront();
         if (tabRail != null) tabRail.bringToFront();
+        frame.animate()
+                .translationX(0f)
+                .translationY(0f)
+                .scaleX(1f)
+                .scaleY(1f)
+                .alpha(1f)
+                .setDuration(220L)
+                .withEndAction(() -> {
+                    updateTabStates();
+                    if (tabRail != null) tabRail.bringToFront();
+                    resume("expand_animation");
+                })
+                .start();
+    }
+
+    private float collapseTargetX(View frame, View tab) {
+        if (frame == null || tab == null || tabRail == null) return dp(48);
+        float frameCx = frame.getX() + frame.getWidth() / 2f;
+        float tabCx = tabRail.getX() + tab.getX() + tab.getWidth() / 2f;
+        return tabCx - frameCx;
+    }
+
+    private float collapseTargetY(View frame, View tab) {
+        if (frame == null || tab == null || tabRail == null) return 0f;
+        float frameCy = frame.getY() + frame.getHeight() / 2f;
+        float tabCy = tabRail.getY() + tab.getY() + tab.getHeight() / 2f;
+        return tabCy - frameCy;
     }
 
     private void ensureTodoVisible() {
@@ -1067,15 +1147,22 @@ public class LockOverlayActivity extends Activity {
             void onGestureEnd(int kind, int startW, int startH);
         }
 
+        interface CollapseListener {
+            void onCollapse();
+        }
+
         private final Paint borderPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint handlePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint arrowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 
         private final int kind;
         private GestureListener listener;
+        private CollapseListener collapseListener;
+        private TextView collapseButton;
         private final android.view.ScaleGestureDetector scaleDetector;
 
         private boolean editing;
+        private boolean collapseTouch;
         private boolean scaling;
         private int resizeCorner = RESIZE_NONE;
 
@@ -1116,17 +1203,70 @@ public class LockOverlayActivity extends Activity {
         }
 
         void setGestureListener(GestureListener value) { listener = value; }
+
+        void enableCollapse(CollapseListener value) {
+            collapseListener = value;
+            if (collapseButton != null) return;
+
+            collapseButton = new TextView(getContext());
+            collapseButton.setText("›");
+            collapseButton.setTextSize(28f);
+            collapseButton.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+            collapseButton.setTextColor(Color.rgb(75, 88, 124));
+            collapseButton.setGravity(Gravity.CENTER);
+            collapseButton.setPadding(0, 0, 0, dpLocal(2));
+
+            GradientDrawable bg = new GradientDrawable();
+            bg.setColor(Color.argb(232, 255, 255, 255));
+            bg.setCornerRadius(dpLocal(15));
+            bg.setStroke(dpLocal(1), Color.argb(105, 105, 121, 155));
+            collapseButton.setBackground(bg);
+            collapseButton.setElevation(dpLocal(6));
+            collapseButton.setContentDescription("띠지로 접기");
+
+            FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
+                    dpLocal(34), dpLocal(50),
+                    Gravity.END | Gravity.CENTER_VERTICAL);
+            lp.setMargins(0, 0, dpLocal(3), 0);
+            addView(collapseButton, lp);
+            collapseButton.bringToFront();
+            collapseButton.setOnClickListener(v -> {
+                if (collapseListener != null) collapseListener.onCollapse();
+            });
+        }
+
         boolean isEditing() { return editing; }
 
         void setEditing(boolean value) {
             editing = value;
             if (!editing) resizeCorner = RESIZE_NONE;
+            if (collapseButton != null) collapseButton.bringToFront();
             invalidate();
         }
 
         @Override
         public boolean onInterceptTouchEvent(MotionEvent event) {
-            return editing;
+            if (!editing) return false;
+            if (event.getActionMasked() == MotionEvent.ACTION_DOWN) {
+                collapseTouch = hitCollapse(event.getX(), event.getY());
+            }
+            if (collapseTouch) {
+                if (event.getActionMasked() == MotionEvent.ACTION_UP
+                        || event.getActionMasked() == MotionEvent.ACTION_CANCEL) {
+                    collapseTouch = false;
+                }
+                return false;
+            }
+            return true;
+        }
+
+        private boolean hitCollapse(float x, float y) {
+            return collapseButton != null
+                    && collapseButton.getVisibility() == View.VISIBLE
+                    && x >= collapseButton.getLeft()
+                    && x <= collapseButton.getRight()
+                    && y >= collapseButton.getTop()
+                    && y <= collapseButton.getBottom();
         }
 
         @Override
@@ -1282,6 +1422,7 @@ public class LockOverlayActivity extends Activity {
         @Override
         protected void dispatchDraw(android.graphics.Canvas canvas) {
             super.dispatchDraw(canvas);
+            if (collapseButton != null) collapseButton.bringToFront();
             if (!editing) return;
 
             float inset = dpLocal(2);
