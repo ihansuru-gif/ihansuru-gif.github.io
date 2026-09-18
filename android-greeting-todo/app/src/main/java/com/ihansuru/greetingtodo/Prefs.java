@@ -40,11 +40,11 @@ final class Prefs {
     }
 
     static long duration(Context c) {
-        return Math.max(500L, Math.min(10000L, normal(c).getLong("duration", 4000L)));
+        return Math.max(500L, Math.min(60000L, normal(c).getLong("duration", 4000L)));
     }
 
     static void setDuration(Context c, long v) {
-        normal(c).edit().putLong("duration", Math.max(500L, Math.min(10000L, v))).apply();
+        normal(c).edit().putLong("duration", Math.max(500L, Math.min(60000L, v))).apply();
     }
 
     static boolean tapDismiss(Context c) { return false; }
