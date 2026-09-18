@@ -1,0 +1,36 @@
+name: Temporary SDK 35 build-tool backup
+on:
+  push:
+    branches: ['build/five-gather-sdk-tools-20260918']
+    paths: ['.github/workflows/sdk35-temporary-backup.yml']
+permissions:
+  contents: read
+jobs:
+  sdk-tools:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: ''
+      - name: Install official SDK packages
+        run: sdkmanager --install 'platforms;android-35' 'build-tools;35.0.0' 'platform-tools'
+      - name: Back up required build tools with original notices
+        run: |
+          set -euo pipefail
+          test -f "$ANDROID_HOME/platforms/android-35/android.jar"
+          test -x "$ANDROID_HOME/build-tools/35.0.0/aapt2"
+          mkdir -p backup
+          tar -czf backup/android-sdk35-build-backup.tar.gz -C "$ANDROID_HOME" platforms/android-35 build-tools/35.0.0 platform-tools licenses
+          sha256sum backup/android-sdk35-build-backup.tar.gz > backup/SHA256SUMS.txt
+          ls -lh backup
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SDK35-temporary-build-backup
+          path: backup/
+          retention-days: 1
