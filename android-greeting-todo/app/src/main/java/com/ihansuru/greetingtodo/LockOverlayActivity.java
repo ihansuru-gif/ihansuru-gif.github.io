@@ -398,9 +398,9 @@ public class LockOverlayActivity extends Activity {
         tabRail.setGravity(Gravity.CENTER_HORIZONTAL);
         tabRail.setPadding(dp(4), dp(6), dp(4), dp(6));
         tabRail.setBackground(rounded(
-                Color.argb(220, 255, 255, 255),
+                Color.argb(214, 255, 255, 255),
                 dp(18),
-                Color.argb(70, 90, 102, 130),
+                Color.argb(58, 90, 102, 130),
                 dp(1)));
         tabRail.setElevation(dp(14));
 
@@ -414,10 +414,15 @@ public class LockOverlayActivity extends Activity {
         int tabH = Math.max(dp(50), Math.round(dp(62) * scale / 100f));
 
         for (String key : Prefs.tabOrder(this)) {
-            if ("todo".equals(key) && Prefs.todoTabEnabled(this)) addRailTab(todoTab, tabW, tabH);
-            else if ("calendar".equals(key) && Prefs.calendarEnabled(this)) addRailTab(calendarTab, tabW, tabH);
-            else if ("memo".equals(key) && Prefs.memoEnabled(this)) addRailTab(memoTab, tabW, tabH);
-            else if ("image".equals(key) && Prefs.imageTabEnabled(this)) addRailTab(imageTab, tabW, tabH);
+            if ("todo".equals(key) && Prefs.todoTabEnabled(this)) {
+                addRailTab(todoTab, tabW, tabH);
+            } else if ("calendar".equals(key) && Prefs.calendarEnabled(this)) {
+                addRailTab(calendarTab, tabW, tabH);
+            } else if ("memo".equals(key) && Prefs.memoEnabled(this)) {
+                addRailTab(memoTab, tabW, tabH);
+            } else if ("image".equals(key) && Prefs.imageTabEnabled(this)) {
+                addRailTab(imageTab, tabW, tabH);
+            }
         }
 
         if (tabRail.getChildCount() == 0) {
@@ -715,14 +720,14 @@ public class LockOverlayActivity extends Activity {
 
         int width = clamp(
                 Math.round(sw * Prefs.todoWidth(this) / 100f),
-                Math.min(dp(250), Math.round(sw * .96f)),
+                Math.min(dp(280), Math.round(sw * .96f)),
                 Math.round(sw * .96f));
 
         todoWidget.refresh();
         int storedHeight = Prefs.todoHeight(this);
         int height;
         if (storedHeight > 0) {
-            height = clamp(Math.round(sh * storedHeight / 100f), Math.min(dp(220), Math.round(sh * .90f)), Math.round(sh * .90f));
+            height = clamp(Math.round(sh * storedHeight / 100f), Math.min(dp(280), Math.round(sh * .90f)), Math.round(sh * .90f));
             todoWidget.measure(
                     View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
                     View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY));
@@ -733,7 +738,7 @@ public class LockOverlayActivity extends Activity {
             height = Math.min(todoWidget.getMeasuredHeight(), Math.round(sh * .86f));
         }
 
-        todoFrame.setLayoutParams(new FrameLayout.LayoutParams(width, Math.max(Math.min(dp(220), Math.round(sh * .90f)), height)));
+        todoFrame.setLayoutParams(new FrameLayout.LayoutParams(width, Math.max(Math.min(dp(280), Math.round(sh * .90f)), height)));
         todoWidget.setLayoutParams(new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT));
@@ -750,7 +755,7 @@ public class LockOverlayActivity extends Activity {
         int width = clamp(Math.round(sw * Prefs.calendarWidth(this) / 100f),
                 Math.min(dp(330), Math.round(sw * .96f)), Math.round(sw * .96f));
         int height = clamp(Math.round(sh * Prefs.calendarHeight(this) / 100f),
-                Math.min(dp(320), Math.round(sh * .90f)), Math.round(sh * .90f));
+                Math.min(dp(440), Math.round(sh * .90f)), Math.round(sh * .90f));
 
         calendarFrame.setLayoutParams(new FrameLayout.LayoutParams(width, height));
         calendarBoard.setLayoutParams(new FrameLayout.LayoutParams(
@@ -768,9 +773,9 @@ public class LockOverlayActivity extends Activity {
         if (sw <= 0 || sh <= 0 || memoFrame == null || memoBoard == null) return;
 
         int width = clamp(Math.round(sw * Prefs.memoWidth(this) / 100f),
-                Math.min(dp(292), Math.round(sw * .96f)), Math.round(sw * .96f));
+                Math.min(dp(310), Math.round(sw * .96f)), Math.round(sw * .96f));
         int height = clamp(Math.round(sh * Prefs.memoHeight(this) / 100f),
-                Math.min(dp(280), Math.round(sh * .88f)), Math.round(sh * .88f));
+                Math.min(dp(340), Math.round(sh * .88f)), Math.round(sh * .88f));
 
         memoFrame.setLayoutParams(new FrameLayout.LayoutParams(width, height));
         memoBoard.setLayoutParams(new FrameLayout.LayoutParams(
@@ -936,7 +941,7 @@ public class LockOverlayActivity extends Activity {
         editToolbar.setElevation(dp(16));
 
         TextView hint = label(
-                "직접 편집 · 끌어 이동 · 오른쪽 아래 // 손잡이로 크기 조절 · 두 손가락 확대/축소",
+                "위쪽 이동선으로 이동 · 오른쪽 아래 // 로 크기 조절 · 편집모드에서는 두 손가락 확대/축소",
                 12.5f,
                 true,
                 Color.rgb(54, 66, 88));
@@ -1361,12 +1366,6 @@ public class LockOverlayActivity extends Activity {
         static final int KIND_MEMO = 3;
         static final int KIND_CALENDAR = 4;
 
-        private static final int RESIZE_NONE = 0;
-        private static final int RESIZE_TL = 1;
-        private static final int RESIZE_TR = 2;
-        private static final int RESIZE_BL = 3;
-        private static final int RESIZE_BR = 4;
-
         interface GestureListener {
             void onGestureStart(int kind);
             void onGestureEnd(int kind, int startW, int startH);
@@ -1377,21 +1376,19 @@ public class LockOverlayActivity extends Activity {
         }
 
         private final Paint borderPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private final Paint handlePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private final Paint arrowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-
         private final int kind;
+        private final android.view.ScaleGestureDetector scaleDetector;
+
         private GestureListener listener;
         private CollapseListener collapseListener;
         private TextView collapseButton;
+        private TextView moveHandle;
         private TextView resizeHandle;
-        private final android.view.ScaleGestureDetector scaleDetector;
 
         private boolean editing;
-        private boolean collapseTouch;
-        private boolean resizeHandleTouch;
+        private boolean controlTouch;
         private boolean scaling;
-        private int resizeCorner = RESIZE_NONE;
+        private boolean bodyGestureActive;
 
         private float downRawX;
         private float downRawY;
@@ -1406,12 +1403,13 @@ public class LockOverlayActivity extends Activity {
             setWillNotDraw(false);
             setClipChildren(false);
             setClipToPadding(false);
-            setClickable(true);
+
             scaleDetector = new android.view.ScaleGestureDetector(context,
                     new android.view.ScaleGestureDetector.SimpleOnScaleGestureListener() {
                         @Override public boolean onScaleBegin(android.view.ScaleGestureDetector detector) {
                             if (!editing) return false;
                             scaling = true;
+                            if (!bodyGestureActive) beginBodyGesture();
                             return true;
                         }
 
@@ -1419,7 +1417,7 @@ public class LockOverlayActivity extends Activity {
                             if (!editing) return false;
                             float factor = detector.getScaleFactor();
                             if (Float.isNaN(factor) || Float.isInfinite(factor)) return false;
-                            resizeAroundCenter(factor);
+                            scaleFrame(factor);
                             return true;
                         }
 
@@ -1434,77 +1432,77 @@ public class LockOverlayActivity extends Activity {
         void enableCollapse(CollapseListener value) {
             collapseListener = value;
             if (collapseButton != null) return;
-
-            collapseButton = new TextView(getContext());
-            collapseButton.setText("›");
-            collapseButton.setTextSize(28f);
-            collapseButton.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-            collapseButton.setTextColor(Color.rgb(75, 88, 124));
-            collapseButton.setGravity(Gravity.CENTER);
-            collapseButton.setPadding(0, 0, 0, dpLocal(2));
-
-            GradientDrawable bg = new GradientDrawable();
-            bg.setColor(Color.argb(232, 255, 255, 255));
-            bg.setCornerRadius(dpLocal(15));
-            bg.setStroke(dpLocal(1), Color.argb(105, 105, 121, 155));
-            collapseButton.setBackground(bg);
-            collapseButton.setElevation(dpLocal(6));
-            collapseButton.setContentDescription("띠지로 접기");
-
-            FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
-                    dpLocal(34), dpLocal(50),
-                    Gravity.END | Gravity.CENTER_VERTICAL);
-            lp.setMargins(0, 0, dpLocal(3), 0);
-            addView(collapseButton, lp);
-            collapseButton.bringToFront();
-            collapseButton.setOnClickListener(v -> {
-                if (collapseListener != null) collapseListener.onCollapse();
-            });
-
+            installCollapseButton();
+            installMoveHandle();
             installResizeHandle();
         }
 
-        private void installResizeHandle() {
-            if (resizeHandle != null) return;
+        boolean isEditing() { return editing; }
 
-            resizeHandle = new TextView(getContext());
-            resizeHandle.setText("╱╱");
-            resizeHandle.setTextSize(10.5f);
-            resizeHandle.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-            resizeHandle.setTextColor(Color.argb(185, 89, 83, 118));
-            resizeHandle.setGravity(Gravity.END | Gravity.BOTTOM);
-            resizeHandle.setContentDescription("크기 조절 손잡이");
-            resizeHandle.setPadding(0, 0, dpLocal(3), dpLocal(3));
-            resizeHandle.setBackgroundColor(Color.TRANSPARENT);
+        void setEditing(boolean value) {
+            editing = value;
+            if (!editing) {
+                scaling = false;
+                bodyGestureActive = false;
+            }
+            bringControlsToFront();
+            invalidate();
+        }
+
+        private void installCollapseButton() {
+            collapseButton = new TextView(getContext());
+            collapseButton.setText("›");
+            collapseButton.setTextSize(25f);
+            collapseButton.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+            collapseButton.setTextColor(accentColor());
+            collapseButton.setGravity(Gravity.CENTER);
+            collapseButton.setContentDescription(kindName() + " 카드 접기");
+
+            GradientDrawable bg = new GradientDrawable();
+            bg.setColor(Color.argb(236, 255, 255, 255));
+            bg.setCornerRadius(dpLocal(14));
+            bg.setStroke(dpLocal(1), alphaColor(accentColor(), 92));
+            collapseButton.setBackground(bg);
+            collapseButton.setElevation(dpLocal(5));
 
             FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
-                    dpLocal(34), dpLocal(34),
-                    Gravity.END | Gravity.BOTTOM);
-            lp.setMargins(0, 0, dpLocal(1), dpLocal(1));
-            addView(resizeHandle, lp);
-            resizeHandle.bringToFront();
+                    dpLocal(30), dpLocal(44),
+                    Gravity.END | Gravity.CENTER_VERTICAL);
+            lp.setMargins(0, 0, dpLocal(2), 0);
+            addView(collapseButton, lp);
+            collapseButton.setOnClickListener(v -> {
+                if (collapseListener != null) collapseListener.onCollapse();
+            });
+        }
 
-            resizeHandle.setOnTouchListener((v, event) -> {
+        private void installMoveHandle() {
+            moveHandle = new TextView(getContext());
+            moveHandle.setText("━━");
+            moveHandle.setTextSize(9.5f);
+            moveHandle.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+            moveHandle.setTextColor(alphaColor(accentColor(), 178));
+            moveHandle.setGravity(Gravity.CENTER);
+            moveHandle.setBackgroundColor(Color.TRANSPARENT);
+            moveHandle.setContentDescription(kindName() + " 카드 이동 손잡이");
+
+            FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
+                    dpLocal(52), dpLocal(24),
+                    Gravity.TOP | Gravity.CENTER_HORIZONTAL);
+            addView(moveHandle, lp);
+
+            moveHandle.setOnTouchListener((v, event) -> {
                 switch (event.getActionMasked()) {
                     case MotionEvent.ACTION_DOWN:
-                        resizeHandleTouch = true;
-                        downRawX = event.getRawX();
-                        downRawY = event.getRawY();
-                        startX = getX();
-                        startY = getY();
-                        startW = getWidth();
-                        startH = getHeight();
-                        resizeCorner = RESIZE_BR;
-                        if (listener != null) listener.onGestureStart(kind);
+                        beginHandleGesture(event);
+                        v.setAlpha(.62f);
                         return true;
                     case MotionEvent.ACTION_MOVE:
-                        resizeFrame(event.getRawX() - downRawX, event.getRawY() - downRawY);
+                        applyMove(event.getRawX() - downRawX, event.getRawY() - downRawY);
                         return true;
                     case MotionEvent.ACTION_UP:
                     case MotionEvent.ACTION_CANCEL:
-                        if (listener != null) listener.onGestureEnd(kind, startW, startH);
-                        resizeCorner = RESIZE_NONE;
-                        resizeHandleTouch = false;
+                        v.setAlpha(1f);
+                        finishHandleGesture();
                         v.performClick();
                         return true;
                     default:
@@ -1513,77 +1511,78 @@ public class LockOverlayActivity extends Activity {
             });
         }
 
-        boolean isEditing() { return editing; }
+        private void installResizeHandle() {
+            resizeHandle = new TextView(getContext());
+            resizeHandle.setText("╱╱");
+            resizeHandle.setTextSize(10.5f);
+            resizeHandle.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+            resizeHandle.setTextColor(alphaColor(accentColor(), 190));
+            resizeHandle.setGravity(Gravity.END | Gravity.BOTTOM);
+            resizeHandle.setPadding(0, 0, dpLocal(3), dpLocal(3));
+            resizeHandle.setBackgroundColor(Color.TRANSPARENT);
+            resizeHandle.setContentDescription(kindName() + " 카드 크기 조절 손잡이");
 
-        void setEditing(boolean value) {
-            editing = value;
-            if (!editing) resizeCorner = RESIZE_NONE;
-            if (collapseButton != null) collapseButton.bringToFront();
-            if (resizeHandle != null) resizeHandle.bringToFront();
-            invalidate();
+            FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
+                    dpLocal(32), dpLocal(32),
+                    Gravity.END | Gravity.BOTTOM);
+            lp.setMargins(0, 0, dpLocal(1), dpLocal(1));
+            addView(resizeHandle, lp);
+
+            resizeHandle.setOnTouchListener((v, event) -> {
+                switch (event.getActionMasked()) {
+                    case MotionEvent.ACTION_DOWN:
+                        beginHandleGesture(event);
+                        v.setAlpha(.62f);
+                        return true;
+                    case MotionEvent.ACTION_MOVE:
+                        applyResize(event.getRawX() - downRawX, event.getRawY() - downRawY);
+                        return true;
+                    case MotionEvent.ACTION_UP:
+                    case MotionEvent.ACTION_CANCEL:
+                        v.setAlpha(1f);
+                        finishHandleGesture();
+                        v.performClick();
+                        return true;
+                    default:
+                        return true;
+                }
+            });
         }
 
         @Override
         public boolean onInterceptTouchEvent(MotionEvent event) {
             if (event.getActionMasked() == MotionEvent.ACTION_DOWN) {
-                collapseTouch = hitCollapse(event.getX(), event.getY());
-                resizeHandleTouch = hitResizeHandle(event.getX(), event.getY());
+                controlTouch = hitControl(event.getX(), event.getY());
             }
-            if (collapseTouch || resizeHandleTouch) {
+            if (controlTouch) {
                 if (event.getActionMasked() == MotionEvent.ACTION_UP
                         || event.getActionMasked() == MotionEvent.ACTION_CANCEL) {
-                    collapseTouch = false;
-                    resizeHandleTouch = false;
+                    controlTouch = false;
                 }
                 return false;
             }
-            if (!editing) return false;
-            return true;
-        }
-
-        private boolean hitCollapse(float x, float y) {
-            return collapseButton != null
-                    && collapseButton.getVisibility() == View.VISIBLE
-                    && x >= collapseButton.getLeft()
-                    && x <= collapseButton.getRight()
-                    && y >= collapseButton.getTop()
-                    && y <= collapseButton.getBottom();
-        }
-
-        private boolean hitResizeHandle(float x, float y) {
-            return resizeHandle != null
-                    && resizeHandle.getVisibility() == View.VISIBLE
-                    && x >= resizeHandle.getLeft() - dpLocal(5)
-                    && x <= resizeHandle.getRight() + dpLocal(5)
-                    && y >= resizeHandle.getTop() - dpLocal(5)
-                    && y <= resizeHandle.getBottom() + dpLocal(5);
+            return editing;
         }
 
         @Override
         public boolean onTouchEvent(MotionEvent event) {
-            if (!editing) return super.onTouchEvent(event);
+            if (!editing) return false;
 
             scaleDetector.onTouchEvent(event);
-            if (event.getPointerCount() > 1 || scaling) {
-                if (event.getActionMasked() == MotionEvent.ACTION_UP
-                        || event.getActionMasked() == MotionEvent.ACTION_CANCEL) {
-                    if (listener != null) listener.onGestureEnd(kind, startW, startH);
-                    scaling = false;
-                }
-                return true;
-            }
-
             switch (event.getActionMasked()) {
                 case MotionEvent.ACTION_DOWN:
-                    begin(event);
+                    downRawX = event.getRawX();
+                    downRawY = event.getRawY();
+                    beginBodyGesture();
                     return true;
                 case MotionEvent.ACTION_MOVE:
-                    updateGesture(event);
+                    if (!scaling && event.getPointerCount() == 1) {
+                        applyMove(event.getRawX() - downRawX, event.getRawY() - downRawY);
+                    }
                     return true;
                 case MotionEvent.ACTION_UP:
                 case MotionEvent.ACTION_CANCEL:
-                    if (listener != null) listener.onGestureEnd(kind, startW, startH);
-                    resizeCorner = RESIZE_NONE;
+                    finishBodyGesture();
                     performClick();
                     return true;
                 default:
@@ -1591,191 +1590,149 @@ public class LockOverlayActivity extends Activity {
             }
         }
 
-        private void begin(MotionEvent event) {
+        private void beginHandleGesture(MotionEvent event) {
             downRawX = event.getRawX();
             downRawY = event.getRawY();
             startX = getX();
             startY = getY();
             startW = getWidth();
             startH = getHeight();
-            resizeCorner = detectResizeCorner(event.getX(), event.getY());
             if (listener != null) listener.onGestureStart(kind);
         }
 
-        private int detectResizeCorner(float x, float y) {
-            float hit = dpLocal(72);
-            boolean left = x <= hit;
-            boolean right = x >= getWidth() - hit;
-            boolean top = y <= hit;
-            boolean bottom = y >= getHeight() - hit;
-
-            if (left && top) return RESIZE_TL;
-            if (right && top) return RESIZE_TR;
-            if (left && bottom) return RESIZE_BL;
-            if (right && bottom) return RESIZE_BR;
-            return RESIZE_NONE;
+        private void finishHandleGesture() {
+            if (listener != null) listener.onGestureEnd(kind, startW, startH);
         }
 
-        private void updateGesture(MotionEvent event) {
-            float dx = event.getRawX() - downRawX;
-            float dy = event.getRawY() - downRawY;
-            if (resizeCorner == RESIZE_NONE) moveFrame(dx, dy);
-            else resizeFrame(dx, dy);
+        private void beginBodyGesture() {
+            if (bodyGestureActive) return;
+            bodyGestureActive = true;
+            startX = getX();
+            startY = getY();
+            startW = getWidth();
+            startH = getHeight();
+            if (listener != null) listener.onGestureStart(kind);
         }
 
-        private void moveFrame(float dx, float dy) {
+        private void finishBodyGesture() {
+            if (!bodyGestureActive) return;
+            bodyGestureActive = false;
+            scaling = false;
+            if (listener != null) listener.onGestureEnd(kind, startW, startH);
+        }
+
+        private void applyMove(float dx, float dy) {
             View parent = (View) getParent();
-            float maxX = Math.max(0, parent.getWidth() - getWidth());
-            float maxY = Math.max(0, parent.getHeight() - getHeight());
-            setX(clampLocal(startX + dx, 0, maxX));
-            setY(clampLocal(startY + dy, 0, maxY));
+            if (parent == null) return;
+            applyBox(CardGeometry.move(
+                    startX, startY, startW, startH,
+                    dx, dy, parent.getWidth(), parent.getHeight()));
         }
 
-        private void resizeFrame(float dx, float dy) {
+        private void applyResize(float dx, float dy) {
             View parent = (View) getParent();
-            int parentW = Math.max(1, parent.getWidth());
-            int parentH = Math.max(1, parent.getHeight());
+            if (parent == null) return;
+            applyBox(CardGeometry.resizeBottomRight(
+                    startX, startY, startW, startH,
+                    dx, dy, parent.getWidth(), parent.getHeight(),
+                    minWidth(parent.getWidth()), minHeight(parent.getHeight()),
+                    kind == KIND_IMAGE));
+        }
 
-            int requestedMinW = dpLocal(kind == KIND_IMAGE ? 64
-                    : kind == KIND_CALENDAR ? 330
-                    : kind == KIND_MEMO ? 292 : 250);
-            int requestedMinH = dpLocal(kind == KIND_IMAGE ? 64
-                    : kind == KIND_CALENDAR ? 320
-                    : kind == KIND_MEMO ? 280 : 220);
-            int minW = Math.min(requestedMinW, parentW);
-            int minH = Math.min(requestedMinH, parentH);
+        private void scaleFrame(float factor) {
+            View parent = (View) getParent();
+            if (parent == null) return;
+            applyBox(CardGeometry.scaleAroundCenter(
+                    getX(), getY(), getWidth(), getHeight(),
+                    factor, parent.getWidth(), parent.getHeight(),
+                    minWidth(parent.getWidth()), minHeight(parent.getHeight()),
+                    kind == KIND_IMAGE));
+        }
 
-            boolean fromLeft = resizeCorner == RESIZE_TL || resizeCorner == RESIZE_BL;
-            boolean fromTop = resizeCorner == RESIZE_TL || resizeCorner == RESIZE_TR;
-
-            int newW = Math.round(startW + (fromLeft ? -dx : dx));
-            int newH = Math.round(startH + (fromTop ? -dy : dy));
-            newW = clampInt(newW, minW, parentW);
-            newH = clampInt(newH, minH, parentH);
-
-            if (kind == KIND_IMAGE && startW > 0 && startH > 0) {
-                float ratio = startW / (float) startH;
-                float scaleByW = newW / (float) startW;
-                float scaleByH = newH / (float) startH;
-                float scale = Math.max(scaleByW, scaleByH);
-                newW = clampInt(Math.round(startW * scale), minW, parentW);
-                newH = clampInt(Math.round(newW / ratio), minH, parentH);
-                if (newH > parentH) {
-                    newH = parentH;
-                    newW = clampInt(Math.round(newH * ratio), minW, parentW);
-                }
-            }
-
-            float newX = startX;
-            float newY = startY;
-            if (fromLeft) newX = startX + (startW - newW);
-            if (fromTop) newY = startY + (startH - newH);
-
-            newX = clampLocal(newX, 0, Math.max(0, parentW - newW));
-            newY = clampLocal(newY, 0, Math.max(0, parentH - newH));
-
+        private void applyBox(CardGeometry.Box box) {
             ViewGroup.LayoutParams lp = getLayoutParams();
-            lp.width = newW;
-            lp.height = newH;
+            lp.width = box.width;
+            lp.height = box.height;
             setLayoutParams(lp);
-            setX(newX);
-            setY(newY);
+            setX(box.x);
+            setY(box.y);
+            bringControlsToFront();
         }
 
-        private void resizeAroundCenter(float factor) {
-            View parent = (View) getParent();
-            if (parent == null || factor <= 0f) return;
-
-            int parentW = Math.max(1, parent.getWidth());
-            int parentH = Math.max(1, parent.getHeight());
-            int requestedMinW = dpLocal(kind == KIND_IMAGE ? 64
+        private int minWidth(int parentWidth) {
+            int requested = kind == KIND_IMAGE ? 72
                     : kind == KIND_CALENDAR ? 330
-                    : kind == KIND_MEMO ? 292 : 250);
-            int requestedMinH = dpLocal(kind == KIND_IMAGE ? 64
-                    : kind == KIND_CALENDAR ? 320
-                    : kind == KIND_MEMO ? 280 : 220);
-            int minW = Math.min(requestedMinW, parentW);
-            int minH = Math.min(requestedMinH, parentH);
+                    : kind == KIND_MEMO ? 310 : 280;
+            return Math.min(dpLocal(requested), Math.max(1, parentWidth));
+        }
 
-            float cx = getX() + getWidth() / 2f;
-            float cy = getY() + getHeight() / 2f;
-            int newW = clampInt(Math.round(getWidth() * factor), minW, parentW);
-            int newH;
+        private int minHeight(int parentHeight) {
+            int requested = kind == KIND_IMAGE ? 72
+                    : kind == KIND_CALENDAR ? 440
+                    : kind == KIND_MEMO ? 340 : 280;
+            return Math.min(dpLocal(requested), Math.max(1, parentHeight));
+        }
 
-            if (kind == KIND_IMAGE && getWidth() > 0 && getHeight() > 0) {
-                float ratio = getWidth() / (float) getHeight();
-                newH = clampInt(Math.round(newW / ratio), minH, parentH);
-                if (newH >= parentH) {
-                    newH = parentH;
-                    newW = clampInt(Math.round(newH * ratio), minW, parentW);
-                }
-            } else {
-                newH = clampInt(Math.round(getHeight() * factor), minH, parentH);
-            }
+        private boolean hitControl(float x, float y) {
+            return hit(moveHandle, x, y, dpLocal(4))
+                    || hit(resizeHandle, x, y, dpLocal(5))
+                    || hit(collapseButton, x, y, dpLocal(3));
+        }
 
-            ViewGroup.LayoutParams lp = getLayoutParams();
-            lp.width = newW;
-            lp.height = newH;
-            setLayoutParams(lp);
-            setX(clampLocal(cx - newW / 2f, 0, Math.max(0, parentW - newW)));
-            setY(clampLocal(cy - newH / 2f, 0, Math.max(0, parentH - newH)));
+        private boolean hit(View view, float x, float y, int extra) {
+            return view != null && view.getVisibility() == View.VISIBLE
+                    && x >= view.getLeft() - extra
+                    && x <= view.getRight() + extra
+                    && y >= view.getTop() - extra
+                    && y <= view.getBottom() + extra;
+        }
+
+        private void bringControlsToFront() {
+            if (moveHandle != null) moveHandle.bringToFront();
+            if (resizeHandle != null) resizeHandle.bringToFront();
+            if (collapseButton != null) collapseButton.bringToFront();
+        }
+
+        private String kindName() {
+            if (kind == KIND_TODO) return "투두";
+            if (kind == KIND_CALENDAR) return "일정";
+            if (kind == KIND_MEMO) return "메모";
+            return "이미지";
+        }
+
+        private int accentColor() {
+            if (kind == KIND_TODO) return Color.rgb(78, 116, 205);
+            if (kind == KIND_CALENDAR) return Color.rgb(118, 94, 202);
+            if (kind == KIND_MEMO) return Color.rgb(175, 106, 66);
+            return Color.rgb(65, 129, 103);
+        }
+
+        private int alphaColor(int color, int alpha) {
+            return Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color));
         }
 
         @Override
         protected void dispatchDraw(android.graphics.Canvas canvas) {
             super.dispatchDraw(canvas);
-            if (collapseButton != null) collapseButton.bringToFront();
-            if (resizeHandle != null) resizeHandle.bringToFront();
+            bringControlsToFront();
             if (!editing) return;
 
             float inset = dpLocal(2);
             borderPaint.setStyle(Paint.Style.STROKE);
-            borderPaint.setStrokeWidth(dpLocal(2.2f));
-            borderPaint.setColor(Color.rgb(74, 124, 245));
+            borderPaint.setStrokeWidth(dpLocal(2f));
+            borderPaint.setColor(accentColor());
             canvas.drawRoundRect(
                     new RectF(inset, inset, getWidth() - inset, getHeight() - inset),
                     dpLocal(13), dpLocal(13), borderPaint);
-
-            drawHandle(canvas, dpLocal(10), dpLocal(10), true, true);
-            drawHandle(canvas, getWidth() - dpLocal(10), dpLocal(10), false, true);
-            drawHandle(canvas, dpLocal(10), getHeight() - dpLocal(10), true, false);
         }
 
-        private void drawHandle(android.graphics.Canvas canvas, float cx, float cy, boolean left, boolean top) {
-            float r = dpLocal(11);
-
-            handlePaint.setStyle(Paint.Style.FILL);
-            handlePaint.setColor(Color.WHITE);
-            handlePaint.setShadowLayer(dpLocal(3), 0, dpLocal(1), Color.argb(75, 0, 0, 0));
-            canvas.drawCircle(cx, cy, r, handlePaint);
-            handlePaint.clearShadowLayer();
-
-            handlePaint.setStyle(Paint.Style.STROKE);
-            handlePaint.setStrokeWidth(dpLocal(2));
-            handlePaint.setColor(Color.rgb(74, 124, 245));
-            canvas.drawCircle(cx, cy, r, handlePaint);
-
-            float d = dpLocal(4.5f);
-            arrowPaint.setStyle(Paint.Style.STROKE);
-            arrowPaint.setStrokeWidth(dpLocal(1.8f));
-            arrowPaint.setStrokeCap(Paint.Cap.ROUND);
-            arrowPaint.setColor(Color.rgb(74, 124, 245));
-
-            float sx = cx + (left ? d : -d);
-            float sy = cy + (top ? d : -d);
-            float ex = cx + (left ? -d : d);
-            float ey = cy + (top ? -d : d);
-            canvas.drawLine(sx, sy, ex, ey, arrowPaint);
-
-            float head = dpLocal(2.6f);
-            canvas.drawLine(ex, ey, ex + (left ? head : -head), ey, arrowPaint);
-            canvas.drawLine(ex, ey, ex, ey + (top ? head : -head), arrowPaint);
-            arrowPaint.setStrokeCap(Paint.Cap.BUTT);
+        @Override public boolean performClick() {
+            super.performClick();
+            return true;
         }
 
-        @Override public boolean performClick() { super.performClick(); return true; }
-        private int dpLocal(float value) { return Math.round(value * getResources().getDisplayMetrics().density); }
-        private static int clampInt(int value, int min, int max) { return Math.max(min, Math.min(max, value)); }
-        private static float clampLocal(float value, float min, float max) { return Math.max(min, Math.min(max, value)); }
+        private int dpLocal(float value) {
+            return Math.round(value * getResources().getDisplayMetrics().density);
+        }
     }
 }
