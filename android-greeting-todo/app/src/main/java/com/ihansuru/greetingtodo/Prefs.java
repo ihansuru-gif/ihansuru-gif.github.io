@@ -142,6 +142,26 @@ final class Prefs {
         normal(c).edit().putFloat("memo_text_scale", clampFloat(v, .82f, 1.65f)).apply();
     }
 
+    static float memoBrushHue(Context c) {
+        float h = normal(c).getFloat("memo_brush_hue", 220f) % 360f;
+        return h < 0 ? h + 360f : h;
+    }
+    static void setMemoBrushHue(Context c, float h) {
+        normal(c).edit().putFloat("memo_brush_hue", ((h % 360f) + 360f) % 360f).apply();
+    }
+    static int memoBrushSat(Context c) { return clamp(normal(c).getInt("memo_brush_sat", 82), 0, 100); }
+    static void setMemoBrushSat(Context c, int v) { normal(c).edit().putInt("memo_brush_sat", clamp(v, 0, 100)).apply(); }
+    static int memoBrushValue(Context c) { return clamp(normal(c).getInt("memo_brush_value", 92), 8, 100); }
+    static void setMemoBrushValue(Context c, int v) { normal(c).edit().putInt("memo_brush_value", clamp(v, 8, 100)).apply(); }
+    static float memoBrushWidth(Context c) { return clampFloat(normal(c).getFloat("memo_brush_width", 5f), 2f, 18f); }
+    static void setMemoBrushWidth(Context c, float v) { normal(c).edit().putFloat("memo_brush_width", clampFloat(v, 2f, 18f)).apply(); }
+    static int memoBrushColor(Context c) {
+        return Color.HSVToColor(new float[]{
+                memoBrushHue(c),
+                memoBrushSat(c) / 100f,
+                memoBrushValue(c) / 100f});
+    }
+
     static float textScale(Context c) { return clampFloat(normal(c).getFloat("text_scale", 1f), .82f, 1.65f); }
     static void setTextScale(Context c, float v) { normal(c).edit().putFloat("text_scale", clampFloat(v, .82f, 1.65f)).apply(); }
 
@@ -292,6 +312,10 @@ final class Prefs {
                 .putFloat("memo_x", .48f)
                 .putFloat("memo_y", .55f)
                 .putFloat("memo_text_scale", 1f)
+                .putFloat("memo_brush_hue", 220f)
+                .putInt("memo_brush_sat", 82)
+                .putInt("memo_brush_value", 92)
+                .putFloat("memo_brush_width", 5f)
                 .putFloat("text_scale", 1f)
                 .putFloat("todo_hue", 232f)
                 .putInt("todo_sat", 34)

@@ -17,6 +17,7 @@ import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
+import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -50,6 +51,19 @@ final class MemoBoardView extends FrameLayout {
     private EditText linkInput;
     private TextView listPanel;
     private LinearLayout listRows;
+    private LinearLayout colorPanel;
+    private ColorWheelView paperWheel;
+    private ColorWheelView brushWheel;
+    private SeekBar paperSatSeek;
+    private SeekBar paperValueSeek;
+    private SeekBar brushSatSeek;
+    private SeekBar brushValueSeek;
+    private SeekBar brushWidthSeek;
+    private TextView paperSatLabel;
+    private TextView paperValueLabel;
+    private TextView brushSatLabel;
+    private TextView brushValueLabel;
+    private TextView brushWidthLabel;
 
     private Button textTab;
     private Button drawTab;
@@ -102,6 +116,11 @@ final class MemoBoardView extends FrameLayout {
         addLp.setMargins(dp(5), 0, 0, 0);
         top.addView(add, addLp);
 
+        Button color = soft("색");
+        LinearLayout.LayoutParams colorLp = new LinearLayout.LayoutParams(dp(44), dp(38));
+        colorLp.setMargins(dp(5), 0, 0, 0);
+        top.addView(color, colorLp);
+
         Button gear = soft("⚙");
         LinearLayout.LayoutParams gearLp = new LinearLayout.LayoutParams(dp(44), dp(38));
         gearLp.setMargins(dp(5), 0, 0, 0);
@@ -145,6 +164,7 @@ final class MemoBoardView extends FrameLayout {
         buildDrawPane();
         buildLinkPane();
         buildListPanel();
+        buildColorPanel();
 
         titleEdit.addTextChangedListener(new SimpleTextWatcher() {
             @Override public void afterTextChanged(Editable s) {
@@ -163,6 +183,7 @@ final class MemoBoardView extends FrameLayout {
 
         list.setOnClickListener(v -> showMemoList());
         add.setOnClickListener(v -> addMemo());
+        color.setOnClickListener(v -> showColorPanel());
         gear.setOnClickListener(v -> {
             if (callback != null) callback.onGear();
         });
@@ -207,6 +228,7 @@ final class MemoBoardView extends FrameLayout {
         Button blue = colorButton("파", Color.rgb(70, 113, 224));
         Button red = colorButton("빨", Color.rgb(220, 86, 94));
         Button green = colorButton("초", Color.rgb(66, 153, 104));
+        Button custom = soft("색");
         Button eraser = soft("지우개");
         Button undo = soft("↶");
         Button clear = soft("지움");
@@ -214,19 +236,23 @@ final class MemoBoardView extends FrameLayout {
         tools.addView(blue, toolLp());
         tools.addView(red, toolLp());
         tools.addView(green, toolLp());
+        tools.addView(custom, toolLp());
         tools.addView(eraser, toolLpWide());
         tools.addView(undo, toolLp());
         tools.addView(clear, toolLpWide());
         drawPane.addView(tools, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, dp(42)));
 
-        black.setOnClickListener(v -> doodle.setPenColor(Color.rgb(48, 54, 67)));
-        blue.setOnClickListener(v -> doodle.setPenColor(Color.rgb(70, 113, 224)));
-        red.setOnClickListener(v -> doodle.setPenColor(Color.rgb(220, 86, 94)));
-        green.setOnClickListener(v -> doodle.setPenColor(Color.rgb(66, 153, 104)));
+        black.setOnClickListener(v -> setPresetBrush(Color.rgb(48, 54, 67)));
+        blue.setOnClickListener(v -> setPresetBrush(Color.rgb(70, 113, 224)));
+        red.setOnClickListener(v -> setPresetBrush(Color.rgb(220, 86, 94)));
+        green.setOnClickListener(v -> setPresetBrush(Color.rgb(66, 153, 104)));
+        custom.setOnClickListener(v -> showColorPanel());
         eraser.setOnClickListener(v -> doodle.setEraser(true));
         undo.setOnClickListener(v -> doodle.undo());
         clear.setOnClickListener(v -> doodle.clearAll());
+
+        applyBrushPrefs();
 
         doodle.setChangeListener(serialized -> {
             if (loading || currentIndex < 0 || currentIndex >= memos.size()) return;
@@ -280,6 +306,243 @@ final class MemoBoardView extends FrameLayout {
 
         contentFrame.addView(linkPane, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+    }
+
+    private void buildColorPanel() {
+        colorPanel = new LinearLayout(getContext());
+        colorPanel.setOrientation(LinearLayout.VERTICAL);
+        colorPanel.setPadding(dp(14), dp(12), dp(14), dp(14));
+        colorPanel.setBackground(rounded(
+                Color.rgb(255, 255, 255), dp(24), Color.rgb(220, 224, 234), dp(1)));
+        colorPanel.setVisibility(GONE);
+
+        LinearLayout top = new LinearLayout(getContext());
+        top.setGravity(Gravity.CENTER_VERTICAL);
+        top.addView(text("색 조절", 17, true, Color.rgb(55, 58, 68)),
+                new LinearLayout.LayoutParams(0, dp(42), 1));
+        Button reset = soft("기본");
+        top.addView(reset, new LinearLayout.LayoutParams(dp(62), dp(38)));
+        Button close = soft("닫기");
+        LinearLayout.LayoutParams closeLp = new LinearLayout.LayoutParams(dp(62), dp(38));
+        closeLp.setMargins(dp(5), 0, 0, 0);
+        top.addView(close, closeLp);
+        colorPanel.addView(top);
+
+        ScrollView scroll = new ScrollView(getContext());
+        LinearLayout controls = new LinearLayout(getContext());
+        controls.setOrientation(LinearLayout.VERTICAL);
+        scroll.addView(controls, new ScrollView.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        colorPanel.addView(scroll, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, 0, 1));
+
+        controls.addView(text("메모지 색", 14, true, Color.rgb(66, 61, 57)));
+        paperWheel = new ColorWheelView(getContext());
+        LinearLayout.LayoutParams paperWheelLp = new LinearLayout.LayoutParams(dp(136), dp(136));
+        paperWheelLp.gravity = Gravity.CENTER_HORIZONTAL;
+        controls.addView(paperWheel, paperWheelLp);
+        paperSatLabel = text("", 12, false, Color.rgb(105, 105, 112));
+        controls.addView(paperSatLabel);
+        paperSatSeek = new SeekBar(getContext());
+        paperSatSeek.setMax(45);
+        controls.addView(paperSatSeek, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(38)));
+        paperValueLabel = text("", 12, false, Color.rgb(105, 105, 112));
+        controls.addView(paperValueLabel);
+        paperValueSeek = new SeekBar(getContext());
+        paperValueSeek.setMax(20);
+        controls.addView(paperValueSeek, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(38)));
+
+        TextView brushTitle = text("브러시 색 · 굵기", 14, true, Color.rgb(66, 61, 57));
+        LinearLayout.LayoutParams brushTitleLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        brushTitleLp.setMargins(0, dp(10), 0, 0);
+        controls.addView(brushTitle, brushTitleLp);
+        brushWheel = new ColorWheelView(getContext());
+        LinearLayout.LayoutParams brushWheelLp = new LinearLayout.LayoutParams(dp(136), dp(136));
+        brushWheelLp.gravity = Gravity.CENTER_HORIZONTAL;
+        controls.addView(brushWheel, brushWheelLp);
+        brushSatLabel = text("", 12, false, Color.rgb(105, 105, 112));
+        controls.addView(brushSatLabel);
+        brushSatSeek = new SeekBar(getContext());
+        brushSatSeek.setMax(100);
+        controls.addView(brushSatSeek, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(38)));
+        brushValueLabel = text("", 12, false, Color.rgb(105, 105, 112));
+        controls.addView(brushValueLabel);
+        brushValueSeek = new SeekBar(getContext());
+        brushValueSeek.setMax(92);
+        controls.addView(brushValueSeek, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(38)));
+        brushWidthLabel = text("", 12, false, Color.rgb(105, 105, 112));
+        controls.addView(brushWidthLabel);
+        brushWidthSeek = new SeekBar(getContext());
+        brushWidthSeek.setMax(16);
+        controls.addView(brushWidthSeek, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(38)));
+
+        addView(colorPanel, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+
+        paperWheel.setListener(hue -> {
+            if (memos.isEmpty()) return;
+            memos.get(currentIndex).paperHue = hue;
+            saveColorState();
+        });
+        paperSatSeek.setOnSeekBarChangeListener(new SimpleSeek() {
+            @Override public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                paperSatLabel.setText("채도  " + progress + "%");
+                if (fromUser && !memos.isEmpty()) {
+                    memos.get(currentIndex).paperSat = progress;
+                    saveColorState();
+                }
+            }
+        });
+        paperValueSeek.setOnSeekBarChangeListener(new SimpleSeek() {
+            @Override public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                int value = 80 + progress;
+                paperValueLabel.setText("밝기  " + value + "%");
+                if (fromUser && !memos.isEmpty()) {
+                    memos.get(currentIndex).paperValue = value;
+                    saveColorState();
+                }
+            }
+        });
+        brushWheel.setListener(hue -> {
+            Prefs.setMemoBrushHue(getContext(), hue);
+            applyBrushPrefs();
+            syncColorPanelValues();
+        });
+        brushSatSeek.setOnSeekBarChangeListener(new SimpleSeek() {
+            @Override public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                brushSatLabel.setText("채도  " + progress + "%");
+                if (fromUser) {
+                    Prefs.setMemoBrushSat(getContext(), progress);
+                    applyBrushPrefs();
+                }
+            }
+        });
+        brushValueSeek.setOnSeekBarChangeListener(new SimpleSeek() {
+            @Override public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                int value = 8 + progress;
+                brushValueLabel.setText("밝기  " + value + "%");
+                if (fromUser) {
+                    Prefs.setMemoBrushValue(getContext(), value);
+                    applyBrushPrefs();
+                }
+            }
+        });
+        brushWidthSeek.setOnSeekBarChangeListener(new SimpleSeek() {
+            @Override public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                float width = 2f + progress;
+                brushWidthLabel.setText(String.format(Locale.KOREAN, "굵기  %.0f", width));
+                if (fromUser) {
+                    Prefs.setMemoBrushWidth(getContext(), width);
+                    applyBrushPrefs();
+                }
+            }
+        });
+
+        reset.setOnClickListener(v -> {
+            if (!memos.isEmpty()) {
+                MemoStore.Memo m = memos.get(currentIndex);
+                m.paperHue = 42f;
+                m.paperSat = 6;
+                m.paperValue = 100;
+                MemoStore.save(getContext(), memos);
+            }
+            Prefs.setMemoBrushHue(getContext(), 220f);
+            Prefs.setMemoBrushSat(getContext(), 82);
+            Prefs.setMemoBrushValue(getContext(), 92);
+            Prefs.setMemoBrushWidth(getContext(), 5f);
+            applyMemoAppearance();
+            applyBrushPrefs();
+            syncColorPanelValues();
+        });
+        close.setOnClickListener(v -> hideColorPanel());
+    }
+
+    private void showColorPanel() {
+        if (colorPanel == null) return;
+        syncColorPanelValues();
+        colorPanel.setVisibility(VISIBLE);
+        colorPanel.bringToFront();
+        setInteraction("color_panel", true);
+    }
+
+    private void hideColorPanel() {
+        if (colorPanel == null) return;
+        colorPanel.setVisibility(GONE);
+        setInteraction("color_panel", false);
+    }
+
+    private void syncColorPanelValues() {
+        if (colorPanel == null || memos.isEmpty()) return;
+        MemoStore.Memo m = memos.get(currentIndex);
+        paperWheel.setHue(m.paperHue);
+        paperSatSeek.setProgress(m.paperSat);
+        paperValueSeek.setProgress(m.paperValue - 80);
+        paperSatLabel.setText("채도  " + m.paperSat + "%");
+        paperValueLabel.setText("밝기  " + m.paperValue + "%");
+
+        brushWheel.setHue(Prefs.memoBrushHue(getContext()));
+        brushSatSeek.setProgress(Prefs.memoBrushSat(getContext()));
+        brushValueSeek.setProgress(Prefs.memoBrushValue(getContext()) - 8);
+        brushWidthSeek.setProgress(Math.round(Prefs.memoBrushWidth(getContext()) - 2f));
+        brushSatLabel.setText("채도  " + Prefs.memoBrushSat(getContext()) + "%");
+        brushValueLabel.setText("밝기  " + Prefs.memoBrushValue(getContext()) + "%");
+        brushWidthLabel.setText(String.format(
+                Locale.KOREAN, "굵기  %.0f", Prefs.memoBrushWidth(getContext())));
+    }
+
+    private void saveColorState() {
+        MemoStore.save(getContext(), memos);
+        applyMemoAppearance();
+        rebuildList();
+        syncColorPanelValues();
+    }
+
+    private void applyBrushPrefs() {
+        if (doodle == null) return;
+        doodle.setPenColor(Prefs.memoBrushColor(getContext()));
+        doodle.setPenWidth(Prefs.memoBrushWidth(getContext()));
+    }
+
+    private void setPresetBrush(int color) {
+        float[] hsv = new float[3];
+        Color.colorToHSV(color, hsv);
+        Prefs.setMemoBrushHue(getContext(), hsv[0]);
+        Prefs.setMemoBrushSat(getContext(), Math.round(hsv[1] * 100f));
+        Prefs.setMemoBrushValue(getContext(), Math.max(8, Math.round(hsv[2] * 100f)));
+        applyBrushPrefs();
+        if (colorPanel != null) syncColorPanelValues();
+    }
+
+    private int memoPaperColor(MemoStore.Memo memo) {
+        return Color.HSVToColor(new float[]{
+                memo.paperHue,
+                memo.paperSat / 100f,
+                memo.paperValue / 100f});
+    }
+
+    private void applyMemoAppearance() {
+        if (memos.isEmpty() || main == null) return;
+        int paper = memoPaperColor(memos.get(currentIndex));
+        int surface = blend(paper, Color.WHITE, .32f);
+        int border = blend(paper, Color.rgb(185, 181, 176), .45f);
+        main.setBackground(rounded(paper, dp(24), border, dp(1)));
+        bodyEdit.setBackground(rounded(surface, dp(14), border, dp(1)));
+        if (doodle != null) doodle.setCanvasColor(surface);
+        if (linkInput != null) linkInput.setBackground(rounded(surface, dp(13), border, dp(1)));
+    }
+
+    private int blend(int base, int overlay, float overlayAmount) {
+        float a = Math.max(0f, Math.min(1f, overlayAmount));
+        int r = Math.round(Color.red(base) * (1f - a) + Color.red(overlay) * a);
+        int g = Math.round(Color.green(base) * (1f - a) + Color.green(overlay) * a);
+        int b = Math.round(Color.blue(base) * (1f - a) + Color.blue(overlay) * a);
+        return Color.rgb(r, g, b);
     }
 
     private void buildListPanel() {
@@ -361,9 +624,10 @@ final class MemoBoardView extends FrameLayout {
             LinearLayout row = new LinearLayout(getContext());
             row.setGravity(Gravity.CENTER_VERTICAL);
             row.setPadding(dp(4), dp(4), dp(4), dp(4));
+            int rowPaper = memoPaperColor(memo);
+            if (index == currentIndex) rowPaper = blend(rowPaper, Color.rgb(231, 225, 255), .24f);
             row.setBackground(rounded(
-                    index == currentIndex ? Color.rgb(244, 240, 255) : Color.WHITE,
-                    dp(13), Color.rgb(232, 227, 219), dp(1)));
+                    rowPaper, dp(13), Color.rgb(220, 216, 210), dp(1)));
 
             String name = displayName(memo, index);
             TextView title = text(name, 13, true, Color.rgb(58, 53, 49));
@@ -469,8 +733,11 @@ final class MemoBoardView extends FrameLayout {
         loading = false;
 
         pageLabel.setText(String.format(Locale.KOREAN, "메모 %d/%d", currentIndex + 1, memos.size()));
+        applyMemoAppearance();
+        applyBrushPrefs();
         rebuildLinks();
         rebuildList();
+        if (colorPanel != null && colorPanel.getVisibility() == VISIBLE) syncColorPanelValues();
     }
 
     private void saveCurrentFromUi() {
@@ -666,6 +933,11 @@ final class MemoBoardView extends FrameLayout {
 
     private int dp(float v) {
         return Math.round(v * getResources().getDisplayMetrics().density);
+    }
+
+    private abstract static class SimpleSeek implements SeekBar.OnSeekBarChangeListener {
+        @Override public void onStartTrackingTouch(SeekBar seekBar) {}
+        @Override public void onStopTrackingTouch(SeekBar seekBar) {}
     }
 
     private abstract static class SimpleTextWatcher implements TextWatcher {

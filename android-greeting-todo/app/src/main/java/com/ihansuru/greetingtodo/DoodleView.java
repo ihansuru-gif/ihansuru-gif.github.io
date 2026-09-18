@@ -22,6 +22,7 @@ final class DoodleView extends View {
     private static final class Stroke {
         int color;
         float width;
+        boolean eraser;
         final ArrayList<Float> points = new ArrayList<>();
     }
 
@@ -31,6 +32,7 @@ final class DoodleView extends View {
     private InteractionListener interactionListener;
     private Stroke active;
     private int penColor = Color.rgb(48, 54, 67);
+    private int canvasColor = Color.WHITE;
     private float penWidth = 5f;
     private boolean erasing;
 
@@ -58,6 +60,11 @@ final class DoodleView extends View {
 
     void setEraser(boolean value) { erasing = value; }
 
+    void setCanvasColor(int color) {
+        canvasColor = color;
+        invalidate();
+    }
+
     void undo() {
         if (!strokes.isEmpty()) {
             strokes.remove(strokes.size() - 1);
@@ -83,6 +90,7 @@ final class DoodleView extends View {
                 Stroke s = new Stroke();
                 s.color = o.optInt("c", Color.rgb(48, 54, 67));
                 s.width = (float) o.optDouble("w", 5.0);
+                s.eraser = o.optBoolean("e", false);
                 JSONArray p = o.optJSONArray("p");
                 if (p == null) continue;
                 for (int j = 0; j < p.length(); j++) {
@@ -101,6 +109,7 @@ final class DoodleView extends View {
             try {
                 o.put("c", s.color);
                 o.put("w", s.width);
+                o.put("e", s.eraser);
                 JSONArray p = new JSONArray();
                 for (Float v : s.points) p.put(v);
                 o.put("p", p);
@@ -113,6 +122,7 @@ final class DoodleView extends View {
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
+        canvas.drawColor(canvasColor);
         for (Stroke s : strokes) drawStroke(canvas, s);
         if (active != null) drawStroke(canvas, active);
     }
@@ -123,7 +133,7 @@ final class DoodleView extends View {
         paint.setStrokeCap(Paint.Cap.ROUND);
         paint.setStrokeJoin(Paint.Join.ROUND);
         paint.setStrokeWidth(dp(s.width));
-        paint.setColor(s.color);
+        paint.setColor(s.eraser ? canvasColor : s.color);
 
         Path path = new Path();
         float x0 = s.points.get(0) * getWidth();
@@ -143,7 +153,8 @@ final class DoodleView extends View {
                 getParent().requestDisallowInterceptTouchEvent(true);
                 if (interactionListener != null) interactionListener.onInteraction(true);
                 active = new Stroke();
-                active.color = erasing ? Color.WHITE : penColor;
+                active.color = penColor;
+                active.eraser = erasing;
                 active.width = erasing ? Math.max(18f, penWidth * 3f) : penWidth;
                 addPoint(active, event.getX(), event.getY());
                 invalidate();

@@ -22,6 +22,9 @@ final class MemoStore {
         String body = "";
         ArrayList<String> links = new ArrayList<>();
         String doodle = "[]";
+        float paperHue = 42f;
+        int paperSat = 6;
+        int paperValue = 100;
         boolean pinned;
 
         Memo copy() {
@@ -31,6 +34,9 @@ final class MemoStore {
             m.body = body;
             m.links = new ArrayList<>(links);
             m.doodle = doodle;
+            m.paperHue = paperHue;
+            m.paperSat = paperSat;
+            m.paperValue = paperValue;
             m.pinned = pinned;
             return m;
         }
@@ -56,6 +62,9 @@ final class MemoStore {
                     m.title = o.optString("title", "");
                     m.body = o.optString("body", "");
                     m.doodle = o.optString("doodle", "[]");
+                    m.paperHue = (float) o.optDouble("paperHue", 42.0);
+                    m.paperSat = Math.max(0, Math.min(45, o.optInt("paperSat", 6)));
+                    m.paperValue = Math.max(80, Math.min(100, o.optInt("paperValue", 100)));
                     m.pinned = o.optBoolean("pinned", false);
                     JSONArray links = o.optJSONArray("links");
                     if (links != null) {
@@ -88,6 +97,9 @@ final class MemoStore {
                 o.put("title", safe(m.title));
                 o.put("body", safe(m.body));
                 o.put("doodle", m.doodle == null ? "[]" : m.doodle);
+                o.put("paperHue", m.paperHue);
+                o.put("paperSat", Math.max(0, Math.min(45, m.paperSat)));
+                o.put("paperValue", Math.max(80, Math.min(100, m.paperValue)));
                 o.put("pinned", m.pinned);
                 JSONArray links = new JSONArray();
                 for (String link : m.links) links.put(safe(link));
