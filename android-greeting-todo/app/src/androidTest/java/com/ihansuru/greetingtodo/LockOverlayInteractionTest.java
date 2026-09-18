@@ -264,7 +264,8 @@ public class LockOverlayInteractionTest {
     }
 
     private static View findByDescription(View root, String description) {
-        if (description.contentEquals(root.getContentDescription())) return root;
+        CharSequence contentDescription = root.getContentDescription();
+        if (contentDescription != null && description.contentEquals(contentDescription)) return root;
         if (root instanceof ViewGroup) {
             ViewGroup group = (ViewGroup) root;
             for (int i = 0; i < group.getChildCount(); i++) {
