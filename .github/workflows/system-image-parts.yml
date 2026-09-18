@@ -1,0 +1,52 @@
+name: Bounded offline Android 30 image backup
+on:
+  push:
+    branches: ['build/five-gather-sdk-tools-20260918']
+    paths: ['.github/workflows/system-image-parts.yml']
+permissions:
+  contents: read
+jobs:
+  system-image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: ''
+      - name: Install blank emulator image
+        run: sdkmanager --install 'system-images;android-30;default;x86_64'
+      - name: Compress and split temporary backup
+        run: |
+          set -euo pipefail
+          mkdir -p image-parts
+          tar -C "$ANDROID_HOME" -cf - system-images/android-30/default/x86_64 | zstd -T2 -3 -o image.tar.zst
+          sha256sum image.tar.zst > image-parts/SHA256SUMS.txt
+          split -b 300M -d image.tar.zst image-parts/part-
+          sha256sum image-parts/part-* >> image-parts/SHA256SUMS.txt
+          ls -lh image-parts/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Android30-blank-image-part-00
+          path: |
+            image-parts/part-00
+            image-parts/SHA256SUMS.txt
+          compression-level: 0
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Android30-blank-image-part-01
+          path: image-parts/part-01
+          compression-level: 0
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Android30-blank-image-part-02
+          path: image-parts/part-02
+          compression-level: 0
+          retention-days: 1
+          if-no-files-found: ignore
