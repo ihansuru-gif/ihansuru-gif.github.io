@@ -75,7 +75,7 @@ public class MainActivity extends Activity {
         titleRow.setGravity(Gravity.CENTER_VERTICAL);
         titleRow.addView(text("인사앱", 29, true, Color.rgb(28, 38, 58)),
                 new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
-        TextView version = text("v1.4.2", 12.5f, true, Color.rgb(112, 94, 202));
+        TextView version = text("v1.5.0", 12.5f, true, Color.rgb(112, 94, 202));
         version.setPadding(dp(10), dp(5), dp(10), dp(5));
         version.setBackground(rounded(Color.rgb(242, 239, 255), dp(14), Color.rgb(222, 215, 247), 1));
         titleRow.addView(version);
@@ -114,7 +114,7 @@ public class MainActivity extends Activity {
         Button edit = primary("실제 화면에서 위치·크기 편집");
         tabsCard.addView(edit, buttonLp(dp(8)));
         tabsCard.addView(caption(
-                "각 카드 오른쪽 아래 작은 // 손잡이로 크기를 조절하고 › 버튼으로 자기 띠지에 접어요"),
+                "카드 위쪽 작은 이동선으로 옮기고, 오른쪽 아래 // 손잡이로 크기를 조절해요"),
                 matchWrap(dp(6), 0));
         root.addView(tabsCard, cardLp(0));
 
