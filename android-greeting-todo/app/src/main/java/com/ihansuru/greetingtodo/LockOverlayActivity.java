@@ -1,14 +1,17 @@
 package com.ihansuru.greetingtodo;
 
+import android.Manifest;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.RectF;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -43,6 +46,8 @@ import java.util.Locale;
 import java.util.Set;
 
 public class LockOverlayActivity extends Activity {
+    private static final int REQ_MEMO_IMAGE = 3201;
+    private static final int REQ_MEMO_AUDIO = 3202;
     private static WeakReference<LockOverlayActivity> current = new WeakReference<>(null);
 
     private final Handler handler = new Handler(Looper.getMainLooper());
@@ -132,6 +137,7 @@ public class LockOverlayActivity extends Activity {
         if (finishTask != null) handler.removeCallbacks(finishTask);
         finishTask = null;
         timerScheduled = false;
+        if (memoBoard != null) memoBoard.prepareForCollapse();
         if (imageBitmap != null && !imageBitmap.isRecycled()) imageBitmap.recycle();
         imageBitmap = null;
         LockOverlayActivity existing = current.get();
@@ -155,6 +161,53 @@ public class LockOverlayActivity extends Activity {
         }
         if (directEditing) exitDirectEdit();
     }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQ_MEMO_IMAGE) {
+            if (resultCode == RESULT_OK && data != null && data.getData() != null && memoBoard != null) {
+                memoBoard.attachImage(data.getData());
+            }
+            resume("memo_picker");
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == REQ_MEMO_AUDIO) {
+            boolean granted = grantResults.length > 0
+                    && grantResults[0] == PackageManager.PERMISSION_GRANTED;
+            if (memoBoard != null) memoBoard.onAudioPermissionResult(granted);
+            resume("memo_permission");
+        }
+    }
+
+    private void pickMemoImage() {
+        pause("memo_picker");
+        try {
+            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+            intent.addCategory(Intent.CATEGORY_OPENABLE);
+            intent.setType("image/*");
+            startActivityForResult(intent, REQ_MEMO_IMAGE);
+        } catch (RuntimeException e) {
+            resume("memo_picker");
+            Toast.makeText(this, "이미지 선택창을 열지 못했어요", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void requestMemoAudioPermission() {
+        if (Build.VERSION.SDK_INT < 23
+                || checkSelfPermission(Manifest.permission.RECORD_AUDIO)
+                == PackageManager.PERMISSION_GRANTED) {
+            if (memoBoard != null) memoBoard.onAudioPermissionResult(true);
+            return;
+        }
+        pause("memo_permission");
+        requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, REQ_MEMO_AUDIO);
+    }
+
 
     private void configureWindow() {
         Window window = getWindow();
@@ -263,6 +316,8 @@ public class LockOverlayActivity extends Activity {
                 if (active) pause("memo_interaction");
                 else resume("memo_interaction");
             }
+            @Override public void onPickImage() { pickMemoImage(); }
+            @Override public void onRequestAudioPermission() { requestMemoAudioPermission(); }
         });
 
         memoFrame.addView(memoBoard, new FrameLayout.LayoutParams(
@@ -378,6 +433,7 @@ public class LockOverlayActivity extends Activity {
     private void collapseMemo() {
         if (memoFrame == null || memoFrame.getVisibility() != View.VISIBLE) return;
         if (directEditing) exitDirectEdit();
+        if (memoBoard != null) memoBoard.prepareForCollapse();
         Prefs.setMemoExpanded(this, false);
         animateCollapse(memoFrame, memoTab);
     }

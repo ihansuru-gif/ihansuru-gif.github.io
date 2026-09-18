@@ -16,28 +16,53 @@ final class MemoStore {
     private static final String KEY_LIST = "memo_list";
     private static final String KEY_ACTIVE = "memo_active";
 
+    static final class CheckItem {
+        String text = "";
+        boolean checked;
+
+        CheckItem() {}
+        CheckItem(String text, boolean checked) {
+            this.text = text == null ? "" : text;
+            this.checked = checked;
+        }
+    }
+
     static final class Memo {
         long id;
         String title = "";
         String body = "";
+        String bodyHtml = "";
+        ArrayList<String> tags = new ArrayList<>();
         ArrayList<String> links = new ArrayList<>();
+        ArrayList<CheckItem> checklist = new ArrayList<>();
+        ArrayList<String> imagePaths = new ArrayList<>();
+        ArrayList<String> voicePaths = new ArrayList<>();
         String doodle = "[]";
         float paperHue = 42f;
         int paperSat = 6;
         int paperValue = 100;
+        int paperPattern = 0; // 0 plain, 1 line, 2 grid
         boolean pinned;
+        boolean archived;
 
         Memo copy() {
             Memo m = new Memo();
             m.id = id;
             m.title = title;
             m.body = body;
+            m.bodyHtml = bodyHtml;
+            m.tags = new ArrayList<>(tags);
             m.links = new ArrayList<>(links);
+            for (CheckItem item : checklist) m.checklist.add(new CheckItem(item.text, item.checked));
+            m.imagePaths = new ArrayList<>(imagePaths);
+            m.voicePaths = new ArrayList<>(voicePaths);
             m.doodle = doodle;
             m.paperHue = paperHue;
             m.paperSat = paperSat;
             m.paperValue = paperValue;
+            m.paperPattern = paperPattern;
             m.pinned = pinned;
+            m.archived = archived;
             return m;
         }
     }
@@ -61,16 +86,27 @@ final class MemoStore {
                     m.id = o.optLong("id", System.currentTimeMillis() + i);
                     m.title = o.optString("title", "");
                     m.body = o.optString("body", "");
+                    m.bodyHtml = o.optString("bodyHtml", "");
                     m.doodle = o.optString("doodle", "[]");
                     m.paperHue = (float) o.optDouble("paperHue", 42.0);
-                    m.paperSat = Math.max(0, Math.min(45, o.optInt("paperSat", 6)));
-                    m.paperValue = Math.max(80, Math.min(100, o.optInt("paperValue", 100)));
+                    m.paperSat = clamp(o.optInt("paperSat", 6), 0, 45);
+                    m.paperValue = clamp(o.optInt("paperValue", 100), 80, 100);
+                    m.paperPattern = clamp(o.optInt("paperPattern", 0), 0, 2);
                     m.pinned = o.optBoolean("pinned", false);
-                    JSONArray links = o.optJSONArray("links");
-                    if (links != null) {
-                        for (int j = 0; j < links.length(); j++) {
-                            String value = links.optString(j, "").trim();
-                            if (!value.isEmpty()) m.links.add(value);
+                    m.archived = o.optBoolean("archived", false);
+                    readStrings(o.optJSONArray("tags"), m.tags);
+                    readStrings(o.optJSONArray("links"), m.links);
+                    readStrings(o.optJSONArray("imagePaths"), m.imagePaths);
+                    readStrings(o.optJSONArray("voicePaths"), m.voicePaths);
+
+                    JSONArray checks = o.optJSONArray("checklist");
+                    if (checks != null) {
+                        for (int j = 0; j < checks.length(); j++) {
+                            JSONObject item = checks.optJSONObject(j);
+                            if (item == null) continue;
+                            String text = item.optString("text", "");
+                            boolean checked = item.optBoolean("checked", false);
+                            if (!text.isEmpty()) m.checklist.add(new CheckItem(text, checked));
                         }
                     }
                     out.add(m);
@@ -96,14 +132,29 @@ final class MemoStore {
                 o.put("id", m.id);
                 o.put("title", safe(m.title));
                 o.put("body", safe(m.body));
+                o.put("bodyHtml", safe(m.bodyHtml));
                 o.put("doodle", m.doodle == null ? "[]" : m.doodle);
                 o.put("paperHue", m.paperHue);
-                o.put("paperSat", Math.max(0, Math.min(45, m.paperSat)));
-                o.put("paperValue", Math.max(80, Math.min(100, m.paperValue)));
+                o.put("paperSat", clamp(m.paperSat, 0, 45));
+                o.put("paperValue", clamp(m.paperValue, 80, 100));
+                o.put("paperPattern", clamp(m.paperPattern, 0, 2));
                 o.put("pinned", m.pinned);
-                JSONArray links = new JSONArray();
-                for (String link : m.links) links.put(safe(link));
-                o.put("links", links);
+                o.put("archived", m.archived);
+                o.put("tags", strings(m.tags));
+                o.put("links", strings(m.links));
+                o.put("imagePaths", strings(m.imagePaths));
+                o.put("voicePaths", strings(m.voicePaths));
+
+                JSONArray checks = new JSONArray();
+                for (CheckItem item : m.checklist) {
+                    String value = safe(item.text).trim();
+                    if (value.isEmpty()) continue;
+                    JSONObject ci = new JSONObject();
+                    ci.put("text", value);
+                    ci.put("checked", item.checked);
+                    checks.put(ci);
+                }
+                o.put("checklist", checks);
                 arr.put(o);
             } catch (JSONException ignored) {}
         }
@@ -125,7 +176,7 @@ final class MemoStore {
         m.id = System.currentTimeMillis();
         m.title = "새 메모";
         int insert = 0;
-        while (insert < list.size() && list.get(insert).pinned) insert++;
+        while (insert < list.size() && list.get(insert).pinned && !list.get(insert).archived) insert++;
         list.add(insert, m);
         save(c, list);
         setActiveIndex(c, insert);
@@ -142,7 +193,7 @@ final class MemoStore {
             list.add(m);
         }
         save(c, list);
-        setActiveIndex(c, Math.min(index, list.size() - 1));
+        setActiveIndex(c, Math.max(0, Math.min(index, list.size() - 1)));
         return list;
     }
 
@@ -162,18 +213,48 @@ final class MemoStore {
         Memo target = list.get(index);
         target.pinned = !target.pinned;
         long activeId = target.id;
-        Collections.sort(list, (a, b) -> Boolean.compare(b.pinned, a.pinned));
+        Collections.sort(list, (a, b) -> {
+            if (a.archived != b.archived) return a.archived ? 1 : -1;
+            if (a.pinned == b.pinned) return 0;
+            return a.pinned ? -1 : 1;
+        });
         save(c, list);
-        for (int i = 0; i < list.size(); i++) {
-            if (list.get(i).id == activeId) {
-                setActiveIndex(c, i);
-                break;
-            }
-        }
+        setActiveIndex(c, indexOfId(list, activeId));
         return list;
     }
 
-    private static String safe(String s) {
-        return s == null ? "" : s;
+    static ArrayList<Memo> toggleArchive(Context c, int index) {
+        ArrayList<Memo> list = load(c);
+        if (index < 0 || index >= list.size()) return list;
+        long activeId = list.get(index).id;
+        list.get(index).archived = !list.get(index).archived;
+        save(c, list);
+        setActiveIndex(c, indexOfId(list, activeId));
+        return list;
     }
+
+    static int indexOfId(List<Memo> list, long id) {
+        for (int i = 0; i < list.size(); i++) if (list.get(i).id == id) return i;
+        return 0;
+    }
+
+    private static void readStrings(JSONArray arr, ArrayList<String> out) {
+        if (arr == null) return;
+        for (int i = 0; i < arr.length(); i++) {
+            String value = arr.optString(i, "").trim();
+            if (!value.isEmpty()) out.add(value);
+        }
+    }
+
+    private static JSONArray strings(List<String> values) {
+        JSONArray arr = new JSONArray();
+        for (String value : values) {
+            String clean = safe(value).trim();
+            if (!clean.isEmpty()) arr.put(clean);
+        }
+        return arr;
+    }
+
+    private static String safe(String s) { return s == null ? "" : s; }
+    private static int clamp(int v, int lo, int hi) { return Math.max(lo, Math.min(hi, v)); }
 }
