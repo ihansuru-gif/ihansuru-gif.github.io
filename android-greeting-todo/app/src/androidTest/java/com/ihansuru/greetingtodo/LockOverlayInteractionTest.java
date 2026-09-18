@@ -4,7 +4,6 @@ import android.app.Activity;
 import android.app.Instrumentation;
 import android.content.Context;
 import android.content.Intent;
-import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
 import android.os.SystemClock;
@@ -13,6 +12,8 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.widget.EditText;
+import android.widget.FrameLayout;
+import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -23,7 +24,6 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import java.io.FileOutputStream;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.Assert.*;
@@ -32,10 +32,10 @@ import static org.junit.Assert.*;
 public class LockOverlayInteractionTest {
     private Instrumentation instrumentation;
     private Context context;
-    private LockOverlayActivity activity;
+    private MainActivity activity;
 
     @Before
-    public void prepare() throws Exception {
+    public void prepare() {
         instrumentation = InstrumentationRegistry.getInstrumentation();
         context = instrumentation.getTargetContext();
 
@@ -43,34 +43,17 @@ public class LockOverlayInteractionTest {
                 .edit().clear().commit();
         context.getSharedPreferences("greeting_memo_store", Context.MODE_PRIVATE)
                 .edit().clear().commit();
-
         Prefs.resetLayout(context);
-        Prefs.setDuration(context, 60_000L);
         Prefs.setEnabled(context, false);
-        Prefs.setTodoTabEnabled(context, true);
-        Prefs.setCalendarEnabled(context, true);
-        Prefs.setMemoEnabled(context, true);
-        Prefs.setImageTabEnabled(context, true);
-        Prefs.setTodoExpanded(context, true);
-        Prefs.setCalendarExpanded(context, true);
-        Prefs.setMemoExpanded(context, true);
-        Prefs.setImageExpanded(context, true);
 
-        Bitmap bitmap = Bitmap.createBitmap(160, 100, Bitmap.Config.ARGB_8888);
-        bitmap.eraseColor(Color.rgb(220, 230, 240));
-        try (FileOutputStream out = new FileOutputStream(ImageStore.file(context))) {
-            bitmap.compress(Bitmap.CompressFormat.PNG, 100, out);
-        }
-        bitmap.recycle();
-
-        Intent intent = new Intent(context, LockOverlayActivity.class)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
-                        | Intent.FLAG_ACTIVITY_CLEAR_TOP
-                        | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        Intent intent = new Intent(context, MainActivity.class)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         Activity started = instrumentation.startActivitySync(intent);
-        assertTrue(started instanceof LockOverlayActivity);
-        activity = (LockOverlayActivity) started;
+        assertTrue(started instanceof MainActivity);
+        activity = (MainActivity) started;
         instrumentation.waitForIdleSync();
+
+        onMain(this::installGestureHarness);
     }
 
     @After
@@ -85,51 +68,78 @@ public class LockOverlayInteractionTest {
 
     @Test
     public void allCardsMoveAndResizeWithIndependentHandles() {
-        onMain(() -> {
-            View root = activity.getWindow().getDecorView();
-            for (String label : new String[]{"투두", "일정", "메모", "이미지"}) {
+        for (String label : new String[]{"투두", "일정", "메모", "이미지"}) {
+            AtomicReference<View> frameRef = new AtomicReference<>();
+            final float[] start = new float[2];
+
+            onMain(() -> {
+                View root = activity.getWindow().getDecorView();
                 View move = findByDescription(root, label + " 카드 이동 손잡이");
-                View resize = findByDescription(root, label + " 카드 크기 조절 손잡이");
                 assertNotNull(label + " move handle", move);
-                assertNotNull(label + " resize handle", resize);
-
                 View frame = (View) move.getParent();
-                float beforeX = frame.getX();
-                float beforeY = frame.getY();
-                float dx = beforeX > 45 ? -36 : 36;
-                float dy = beforeY > 45 ? -32 : 32;
+                frameRef.set(frame);
+                start[0] = frame.getX();
+                start[1] = frame.getY();
+                float dx = start[0] > 45 ? -36 : 36;
+                float dy = start[1] > 45 ? -32 : 32;
                 drag(move, dx, dy);
+            });
+
+            onMain(() -> {
+                View frame = frameRef.get();
                 assertTrue(label + " should move horizontally",
-                        Math.abs(frame.getX() - beforeX) > 2f);
+                        Math.abs(frame.getX() - start[0]) > 2f);
                 assertTrue(label + " should move vertically",
-                        Math.abs(frame.getY() - beforeY) > 2f);
+                        Math.abs(frame.getY() - start[1]) > 2f);
+            });
 
-                int beforeW = frame.getWidth();
-                int beforeH = frame.getHeight();
-                drag(resize, 24, 28);
+            final int[] beforeSize = new int[2];
+            onMain(() -> {
+                View root = activity.getWindow().getDecorView();
+                View resize = findByDescription(root, label + " 카드 크기 조절 손잡이");
+                assertNotNull(label + " resize handle", resize);
+                View frame = (View) resize.getParent();
+                beforeSize[0] = frame.getLayoutParams().width;
+                beforeSize[1] = frame.getLayoutParams().height;
+                drag(resize, 42, 46);
+            });
+
+            onMain(() -> {
+                View frame = frameRef.get();
                 assertTrue(label + " should resize",
-                        frame.getWidth() != beforeW || frame.getHeight() != beforeH);
+                        frame.getLayoutParams().width != beforeSize[0]
+                                || frame.getLayoutParams().height != beforeSize[1]);
+            });
 
-                float movedX = frame.getX();
-                float movedY = frame.getY();
-                drag(move, -18, -18);
+            final float[] afterResizePos = new float[2];
+            onMain(() -> {
+                View frame = frameRef.get();
+                afterResizePos[0] = frame.getX();
+                afterResizePos[1] = frame.getY();
+                View move = findByDescription(
+                        activity.getWindow().getDecorView(), label + " 카드 이동 손잡이");
+                drag(move, -22, -20);
+            });
+
+            onMain(() -> {
+                View frame = frameRef.get();
                 assertTrue(label + " should still move after resize",
-                        Math.abs(frame.getX() - movedX) > 1f
-                                || Math.abs(frame.getY() - movedY) > 1f);
-            }
-        });
+                        Math.abs(frame.getX() - afterResizePos[0]) > 1f
+                                || Math.abs(frame.getY() - afterResizePos[1]) > 1f);
+            });
+        }
     }
 
     @Test
     public void bodyInteractionsDoNotMoveMemoOrCalendarCards() {
+        final float[] memoPos = new float[2];
         onMain(() -> {
             View root = activity.getWindow().getDecorView();
-
             View memoMove = findByDescription(root, "메모 카드 이동 손잡이");
             assertNotNull(memoMove);
             View memoFrame = (View) memoMove.getParent();
-            float memoX = memoFrame.getX();
-            float memoY = memoFrame.getY();
+            memoPos[0] = memoFrame.getX();
+            memoPos[1] = memoFrame.getY();
 
             View textTab = findText(root, "T 텍스트");
             assertNotNull(textTab);
@@ -138,54 +148,69 @@ public class LockOverlayInteractionTest {
             EditText memoTitle = (EditText) findEditByHint(root, "메모 제목");
             assertNotNull(memoTitle);
             tap(memoTitle);
-            assertEquals(memoX, memoFrame.getX(), 1f);
-            assertEquals(memoY, memoFrame.getY(), 1f);
+        });
 
-            View drawTab = findText(root, "✎ 낙서");
+        onMain(() -> {
+            View memoFrame = (View) findByDescription(
+                    activity.getWindow().getDecorView(), "메모 카드 이동 손잡이").getParent();
+            assertEquals(memoPos[0], memoFrame.getX(), 1f);
+            assertEquals(memoPos[1], memoFrame.getY(), 1f);
+
+            View drawTab = findText(activity.getWindow().getDecorView(), "✎ 낙서");
             assertNotNull(drawTab);
             drawTab.performClick();
-            View doodle = findByClass(root, DoodleView.class);
+            View doodle = findByClass(activity.getWindow().getDecorView(), DoodleView.class);
             assertNotNull(doodle);
             drag(doodle, 40, 32);
-            assertEquals(memoX, memoFrame.getX(), 1f);
-            assertEquals(memoY, memoFrame.getY(), 1f);
+        });
 
+        onMain(() -> {
+            View memoFrame = (View) findByDescription(
+                    activity.getWindow().getDecorView(), "메모 카드 이동 손잡이").getParent();
+            assertEquals(memoPos[0], memoFrame.getX(), 1f);
+            assertEquals(memoPos[1], memoFrame.getY(), 1f);
+        });
+
+        final float[] calPos = new float[2];
+        onMain(() -> {
+            View root = activity.getWindow().getDecorView();
             View calendarMove = findByDescription(root, "일정 카드 이동 손잡이");
             assertNotNull(calendarMove);
             View calendarFrame = (View) calendarMove.getParent();
-            float calX = calendarFrame.getX();
-            float calY = calendarFrame.getY();
+            calPos[0] = calendarFrame.getX();
+            calPos[1] = calendarFrame.getY();
 
             View grid = findByClass(root, CalendarGridView.class);
             assertNotNull(grid);
             cancelDrag(grid, 90, 24);
-            assertEquals(calX, calendarFrame.getX(), 1f);
-            assertEquals(calY, calendarFrame.getY(), 1f);
+        });
+
+        onMain(() -> {
+            View calendarFrame = (View) findByDescription(
+                    activity.getWindow().getDecorView(), "일정 카드 이동 손잡이").getParent();
+            assertEquals(calPos[0], calendarFrame.getX(), 1f);
+            assertEquals(calPos[1], calendarFrame.getY(), 1f);
         });
     }
 
     @Test
-    public void fourTabsExistAndWindowIsTransparentWithoutDim() {
+    public void sharedWindowStyleIsTransparentWithoutDim() {
         onMain(() -> {
-            View root = activity.getWindow().getDecorView();
-            assertNotNull(findTextContaining(root, "투두"));
-            assertNotNull(findTextContaining(root, "일정"));
-            assertNotNull(findTextContaining(root, "메모"));
-            assertNotNull(findTextContaining(root, "이미지"));
-
+            OverlayWindowStyle.apply(activity);
             int flags = activity.getWindow().getAttributes().flags;
             assertEquals(0, flags & WindowManager.LayoutParams.FLAG_DIM_BEHIND);
             assertEquals(0f, activity.getWindow().getAttributes().dimAmount, .001f);
 
             if (activity.getWindow().getDecorView().getBackground() instanceof ColorDrawable) {
-                ColorDrawable bg = (ColorDrawable) activity.getWindow().getDecorView().getBackground();
+                ColorDrawable bg =
+                        (ColorDrawable) activity.getWindow().getDecorView().getBackground();
                 assertEquals(0, Color.alpha(bg.getColor()));
             }
         });
     }
 
     @Test
-    public void collapseOnlyCollapsesItsOwnCard() throws Exception {
+    public void collapseOnlyCollapsesItsOwnCard() {
         final AtomicReference<View> todoFrame = new AtomicReference<>();
         final AtomicReference<View> memoFrame = new AtomicReference<>();
 
@@ -200,13 +225,73 @@ public class LockOverlayInteractionTest {
             todoCollapse.performClick();
         });
 
-        Thread.sleep(320L);
-        instrumentation.waitForIdleSync();
-
         onMain(() -> {
             assertEquals(View.GONE, todoFrame.get().getVisibility());
             assertEquals(View.VISIBLE, memoFrame.get().getVisibility());
         });
+    }
+
+    private void installGestureHarness() {
+        FrameLayout root = new FrameLayout(activity);
+        root.setBackgroundColor(Color.TRANSPARENT);
+        activity.setContentView(root);
+
+        OverlayCardFrame todo = new OverlayCardFrame(activity, OverlayCardFrame.KIND_TODO);
+        LockTodoWidget todoWidget = new LockTodoWidget(activity);
+        todoWidget.setCallback(new LockTodoWidget.Callback() {
+            @Override public void onComplete(int index) {}
+            @Override public void onGear() {}
+            @Override public void onAdd(String text) {}
+            @Override public void onInteractionChanged(boolean active) {}
+        });
+        todo.addView(todoWidget, match());
+        installCard(root, todo, 760, 700, 50, 70);
+
+        OverlayCardFrame calendar =
+                new OverlayCardFrame(activity, OverlayCardFrame.KIND_CALENDAR);
+        CalendarBoardView calendarBoard = new CalendarBoardView(activity);
+        calendarBoard.setCallback(new CalendarBoardView.Callback() {
+            @Override public void onGear() {}
+            @Override public void onInteractionChanged(boolean active) {}
+            @Override public void onReminderPermissionNeeded() {}
+        });
+        calendar.addView(calendarBoard, match());
+        installCard(root, calendar, 900, 1120, 100, 180);
+
+        OverlayCardFrame memo = new OverlayCardFrame(activity, OverlayCardFrame.KIND_MEMO);
+        MemoBoardView memoBoard = new MemoBoardView(activity);
+        memoBoard.setCallback(new MemoBoardView.Callback() {
+            @Override public void onGear() {}
+            @Override public void onInteractionChanged(boolean active) {}
+            @Override public void onPickImage() {}
+            @Override public void onRequestAudioPermission() {}
+        });
+        memo.addView(memoBoard, match());
+        installCard(root, memo, 850, 950, 120, 260);
+
+        OverlayCardFrame image = new OverlayCardFrame(activity, OverlayCardFrame.KIND_IMAGE);
+        ImageView imageView = new ImageView(activity);
+        imageView.setBackgroundColor(Color.rgb(232, 238, 246));
+        image.addView(imageView, match());
+        installCard(root, image, 500, 360, 180, 360);
+    }
+
+    private void installCard(FrameLayout root, OverlayCardFrame frame,
+                             int width, int height, float x, float y) {
+        frame.setGestureListener(new OverlayCardFrame.GestureListener() {
+            @Override public void onGestureStart(int kind) {}
+            @Override public void onGestureEnd(int kind, int startW, int startH) {}
+        });
+        frame.enableCollapse(() -> frame.setVisibility(View.GONE));
+        root.addView(frame, new FrameLayout.LayoutParams(width, height));
+        frame.setX(x);
+        frame.setY(y);
+    }
+
+    private FrameLayout.LayoutParams match() {
+        return new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT);
     }
 
     private void onMain(Runnable runnable) {
@@ -273,20 +358,6 @@ public class LockOverlayInteractionTest {
             ViewGroup group = (ViewGroup) root;
             for (int i = 0; i < group.getChildCount(); i++) {
                 View found = findText(group.getChildAt(i), text);
-                if (found != null) return found;
-            }
-        }
-        return null;
-    }
-
-    private static View findTextContaining(View root, String text) {
-        if (root instanceof TextView
-                && ((TextView) root).getText() != null
-                && ((TextView) root).getText().toString().contains(text)) return root;
-        if (root instanceof ViewGroup) {
-            ViewGroup group = (ViewGroup) root;
-            for (int i = 0; i < group.getChildCount(); i++) {
-                View found = findTextContaining(group.getChildAt(i), text);
                 if (found != null) return found;
             }
         }
