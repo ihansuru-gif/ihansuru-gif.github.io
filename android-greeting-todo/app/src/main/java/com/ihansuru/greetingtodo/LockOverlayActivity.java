@@ -48,6 +48,7 @@ import java.util.Set;
 public class LockOverlayActivity extends Activity {
     private static final int REQ_MEMO_IMAGE = 3201;
     private static final int REQ_MEMO_AUDIO = 3202;
+    private static final int REQ_CALENDAR_NOTIFY = 3203;
     private static WeakReference<LockOverlayActivity> current = new WeakReference<>(null);
 
     private final Handler handler = new Handler(Looper.getMainLooper());
@@ -58,14 +59,17 @@ public class LockOverlayActivity extends Activity {
     private GestureFrame todoFrame;
     private GestureFrame imageFrame;
     private GestureFrame memoFrame;
+    private GestureFrame calendarFrame;
     private LockTodoWidget todoWidget;
     private MemoBoardView memoBoard;
+    private CalendarBoardView calendarBoard;
     private ImageView imageView;
     private Bitmap imageBitmap;
 
     private LinearLayout tabRail;
     private TextView todoTab;
     private TextView memoTab;
+    private TextView calendarTab;
     private TextView imageTab;
 
     private LinearLayout editToolbar;
@@ -138,6 +142,7 @@ public class LockOverlayActivity extends Activity {
         finishTask = null;
         timerScheduled = false;
         if (memoBoard != null) memoBoard.prepareForCollapse();
+        if (calendarBoard != null) calendarBoard.prepareForCollapse();
         if (imageBitmap != null && !imageBitmap.isRecycled()) imageBitmap.recycle();
         imageBitmap = null;
         LockOverlayActivity existing = current.get();
@@ -181,6 +186,11 @@ public class LockOverlayActivity extends Activity {
                     && grantResults[0] == PackageManager.PERMISSION_GRANTED;
             if (memoBoard != null) memoBoard.onAudioPermissionResult(granted);
             resume("memo_permission");
+        } else if (requestCode == REQ_CALENDAR_NOTIFY) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                CalendarReminderManager.scheduleAll(this);
+            }
+            resume("calendar_permission");
         }
     }
 
@@ -209,6 +219,17 @@ public class LockOverlayActivity extends Activity {
     }
 
 
+    private void requestCalendarNotificationPermission() {
+        if (Build.VERSION.SDK_INT < 33
+                || checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+                == PackageManager.PERMISSION_GRANTED) {
+            CalendarReminderManager.scheduleAll(this);
+            return;
+        }
+        pause("calendar_permission");
+        requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, REQ_CALENDAR_NOTIFY);
+    }
+
     private void configureWindow() {
         Window window = getWindow();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
@@ -226,9 +247,10 @@ public class LockOverlayActivity extends Activity {
     }
 
     private void buildObjects() {
-        if (Prefs.todoExpanded(this)) buildTodoObject();
-        if (Prefs.imageExpanded(this) && ImageStore.has(this)) buildImageObject();
+        if (Prefs.todoTabEnabled(this) && Prefs.todoExpanded(this)) buildTodoObject();
+        if (Prefs.imageTabEnabled(this) && Prefs.imageExpanded(this) && ImageStore.has(this)) buildImageObject();
         if (Prefs.memoEnabled(this) && Prefs.memoExpanded(this)) buildMemoObject();
+        if (Prefs.calendarEnabled(this) && Prefs.calendarExpanded(this)) buildCalendarObject();
         buildTabRail();
     }
 
@@ -327,6 +349,37 @@ public class LockOverlayActivity extends Activity {
         root.addView(memoFrame);
     }
 
+    private void buildCalendarObject() {
+        if (calendarFrame != null || !Prefs.calendarEnabled(this)) return;
+
+        calendarFrame = new GestureFrame(this, GestureFrame.KIND_CALENDAR);
+        calendarFrame.setGestureListener(new GestureFrame.GestureListener() {
+            @Override public void onGestureStart(int kind) { pause("gesture"); }
+            @Override public void onGestureEnd(int kind, int startW, int startH) {
+                persistCalendarGesture();
+                resume("gesture");
+            }
+        });
+
+        calendarBoard = new CalendarBoardView(this);
+        calendarBoard.setCallback(new CalendarBoardView.Callback() {
+            @Override public void onGear() { enterDirectEdit(); }
+            @Override public void onInteractionChanged(boolean active) {
+                if (active) pause("calendar_interaction");
+                else resume("calendar_interaction");
+            }
+            @Override public void onReminderPermissionNeeded() {
+                requestCalendarNotificationPermission();
+            }
+        });
+
+        calendarFrame.addView(calendarBoard, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT));
+        calendarFrame.enableCollapse(() -> collapseCalendar());
+        root.addView(calendarFrame);
+    }
+
     private void buildTabRail() {
         if (tabRail != null) return;
 
@@ -342,37 +395,53 @@ public class LockOverlayActivity extends Activity {
         tabRail.setElevation(dp(14));
 
         todoTab = sideTab("✓\n투두");
+        calendarTab = sideTab("▣\n일정");
         memoTab = sideTab("✎\n메모");
         imageTab = sideTab("▧\n이미지");
 
-        tabRail.addView(todoTab, new LinearLayout.LayoutParams(dp(52), dp(62)));
-        LinearLayout.LayoutParams memoLp = new LinearLayout.LayoutParams(dp(52), dp(62));
-        memoLp.setMargins(0, dp(5), 0, 0);
-        tabRail.addView(memoTab, memoLp);
-        LinearLayout.LayoutParams imageLp = new LinearLayout.LayoutParams(dp(52), dp(62));
-        imageLp.setMargins(0, dp(5), 0, 0);
-        tabRail.addView(imageTab, imageLp);
+        int scale = Prefs.tabSize(this);
+        int tabW = Math.max(dp(42), Math.round(dp(52) * scale / 100f));
+        int tabH = Math.max(dp(50), Math.round(dp(62) * scale / 100f));
+
+        if (Prefs.todoTabEnabled(this)) addRailTab(todoTab, tabW, tabH);
+        for (String key : Prefs.tabOrder(this)) {
+            if ("calendar".equals(key) && Prefs.calendarEnabled(this)) addRailTab(calendarTab, tabW, tabH);
+            else if ("memo".equals(key) && Prefs.memoEnabled(this)) addRailTab(memoTab, tabW, tabH);
+            else if ("image".equals(key) && Prefs.imageTabEnabled(this)) addRailTab(imageTab, tabW, tabH);
+        }
+
+        if (tabRail.getChildCount() == 0) {
+            tabRail = null;
+            return;
+        }
 
         FrameLayout.LayoutParams railLp = new FrameLayout.LayoutParams(
-                dp(60), ViewGroup.LayoutParams.WRAP_CONTENT,
+                tabW + dp(8), ViewGroup.LayoutParams.WRAP_CONTENT,
                 Gravity.END | Gravity.CENTER_VERTICAL);
         railLp.setMargins(0, 0, dp(2), 0);
         root.addView(tabRail, railLp);
         tabRail.bringToFront();
 
         todoTab.setOnClickListener(v -> toggleTodo());
+        calendarTab.setOnClickListener(v -> toggleCalendar());
         memoTab.setOnClickListener(v -> toggleMemo());
         imageTab.setOnClickListener(v -> toggleImage());
 
         todoTab.setOnLongClickListener(v -> { ensureTodoVisible(); enterDirectEdit(); return true; });
+        calendarTab.setOnLongClickListener(v -> { ensureCalendarVisible(); enterDirectEdit(); return true; });
         memoTab.setOnLongClickListener(v -> { ensureMemoVisible(); enterDirectEdit(); return true; });
         imageTab.setOnLongClickListener(v -> {
             if (ImageStore.has(this)) { ensureImageVisible(); enterDirectEdit(); }
             return true;
         });
 
-        memoTab.setVisibility(Prefs.memoEnabled(this) ? View.VISIBLE : View.GONE);
         updateTabStates();
+    }
+
+    private void addRailTab(TextView tab, int width, int height) {
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(width, height);
+        if (tabRail.getChildCount() > 0) lp.setMargins(0, dp(5), 0, 0);
+        tabRail.addView(tab, lp);
     }
 
     private TextView sideTab(String label) {
@@ -398,6 +467,16 @@ public class LockOverlayActivity extends Activity {
         }
         ensureTodoVisible();
         animateExpand(todoFrame, todoTab);
+    }
+
+    private void toggleCalendar() {
+        if (!Prefs.calendarEnabled(this)) return;
+        if (calendarFrame != null && calendarFrame.getVisibility() == View.VISIBLE) {
+            collapseCalendar();
+            return;
+        }
+        ensureCalendarVisible();
+        animateExpand(calendarFrame, calendarTab);
     }
 
     private void toggleMemo() {
@@ -428,6 +507,14 @@ public class LockOverlayActivity extends Activity {
         if (directEditing) exitDirectEdit();
         Prefs.setTodoExpanded(this, false);
         animateCollapse(todoFrame, todoTab);
+    }
+
+    private void collapseCalendar() {
+        if (calendarFrame == null || calendarFrame.getVisibility() != View.VISIBLE) return;
+        if (directEditing) exitDirectEdit();
+        if (calendarBoard != null) calendarBoard.prepareForCollapse();
+        Prefs.setCalendarExpanded(this, false);
+        animateCollapse(calendarFrame, calendarTab);
     }
 
     private void collapseMemo() {
@@ -521,6 +608,14 @@ public class LockOverlayActivity extends Activity {
         updateTabStates();
     }
 
+    private void ensureCalendarVisible() {
+        if (calendarFrame == null) buildCalendarObject();
+        if (root.getWidth() > 0) layoutCalendarFrame(true);
+        if (calendarFrame != null) calendarFrame.setVisibility(View.VISIBLE);
+        Prefs.setCalendarExpanded(this, true);
+        updateTabStates();
+    }
+
     private void ensureMemoVisible() {
         if (memoFrame == null) buildMemoObject();
         if (root.getWidth() > 0) layoutMemoFrame(true);
@@ -539,6 +634,7 @@ public class LockOverlayActivity extends Activity {
 
     private void updateTabStates() {
         if (todoTab != null) todoTab.setAlpha(todoFrame != null && todoFrame.getVisibility() == View.VISIBLE ? 1f : .55f);
+        if (calendarTab != null) calendarTab.setAlpha(calendarFrame != null && calendarFrame.getVisibility() == View.VISIBLE ? 1f : .55f);
         if (memoTab != null) memoTab.setAlpha(memoFrame != null && memoFrame.getVisibility() == View.VISIBLE ? 1f : .55f);
         if (imageTab != null) {
             imageTab.setAlpha(imageFrame != null && imageFrame.getVisibility() == View.VISIBLE ? 1f : .45f);
@@ -551,6 +647,7 @@ public class LockOverlayActivity extends Activity {
         if (imageFrame != null) layoutImageFrame(true);
         if (todoFrame != null) layoutTodoFrame(true);
         if (memoFrame != null) layoutMemoFrame(true);
+        if (calendarFrame != null) layoutCalendarFrame(true);
         if (editToolbar != null) editToolbar.bringToFront();
         if (detailPanel != null) detailPanel.bringToFront();
         if (tabRail != null) tabRail.bringToFront();
@@ -616,6 +713,24 @@ public class LockOverlayActivity extends Activity {
 
         if (fromPrefs) placeByCenter(todoFrame, Prefs.todoX(this), Prefs.todoY(this));
         else clampPosition(todoFrame);
+    }
+
+    private void layoutCalendarFrame(boolean fromPrefs) {
+        int sw = root.getWidth();
+        int sh = root.getHeight();
+        if (sw <= 0 || sh <= 0 || calendarFrame == null || calendarBoard == null) return;
+
+        int width = clamp(Math.round(sw * Prefs.calendarWidth(this) / 100f), dp(260), Math.round(sw * .96f));
+        int height = clamp(Math.round(sh * Prefs.calendarHeight(this) / 100f), dp(300), Math.round(sh * .90f));
+
+        calendarFrame.setLayoutParams(new FrameLayout.LayoutParams(width, height));
+        calendarBoard.setLayoutParams(new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT));
+        calendarBoard.refresh();
+
+        if (fromPrefs) placeByCenter(calendarFrame, Prefs.calendarX(this), Prefs.calendarY(this));
+        else clampPosition(calendarFrame);
     }
 
     private void layoutMemoFrame(boolean fromPrefs) {
@@ -721,6 +836,26 @@ public class LockOverlayActivity extends Activity {
                 centerY(imageFrame) / root.getHeight());
     }
 
+    private void persistCalendarGesture() {
+        if (calendarFrame == null || root.getWidth() <= 0 || root.getHeight() <= 0) return;
+
+        float cx = centerX(calendarFrame) / root.getWidth();
+        float cy = centerY(calendarFrame) / root.getHeight();
+        int widthPct = Math.round(calendarFrame.getWidth() * 100f / root.getWidth());
+        int heightPct = Math.round(calendarFrame.getHeight() * 100f / root.getHeight());
+
+        Prefs.setCalendarSize(this, widthPct, heightPct);
+        Prefs.setCalendarPosition(this, cx, cy);
+
+        boolean editing = calendarFrame.isEditing();
+        layoutCalendarFrame(false);
+        placeByCenter(calendarFrame, cx, cy);
+        calendarFrame.setEditing(editing);
+        Prefs.setCalendarPosition(this,
+                centerX(calendarFrame) / root.getWidth(),
+                centerY(calendarFrame) / root.getHeight());
+    }
+
     private void persistMemoGesture() {
         if (memoFrame == null || root.getWidth() <= 0 || root.getHeight() <= 0) return;
 
@@ -750,6 +885,7 @@ public class LockOverlayActivity extends Activity {
         if (todoFrame != null && todoFrame.getVisibility() == View.VISIBLE) todoFrame.setEditing(true);
         if (imageFrame != null && imageFrame.getVisibility() == View.VISIBLE) imageFrame.setEditing(true);
         if (memoFrame != null && memoFrame.getVisibility() == View.VISIBLE) memoFrame.setEditing(true);
+        if (calendarFrame != null && calendarFrame.getVisibility() == View.VISIBLE) calendarFrame.setEditing(true);
 
         buildEditToolbar();
     }
@@ -808,6 +944,7 @@ public class LockOverlayActivity extends Activity {
         if (todoFrame != null) todoFrame.setEditing(false);
         if (imageFrame != null) imageFrame.setEditing(false);
         if (memoFrame != null) memoFrame.setEditing(false);
+        if (calendarFrame != null) calendarFrame.setEditing(false);
 
         directEditing = false;
         hideKeyboard();
@@ -1191,6 +1328,7 @@ public class LockOverlayActivity extends Activity {
         static final int KIND_TODO = 1;
         static final int KIND_IMAGE = 2;
         static final int KIND_MEMO = 3;
+        static final int KIND_CALENDAR = 4;
 
         private static final int RESIZE_NONE = 0;
         private static final int RESIZE_TL = 1;
@@ -1402,8 +1540,8 @@ public class LockOverlayActivity extends Activity {
             int parentW = Math.max(1, parent.getWidth());
             int parentH = Math.max(1, parent.getHeight());
 
-            int minW = dpLocal(kind == KIND_IMAGE ? 64 : 220);
-            int minH = dpLocal(kind == KIND_IMAGE ? 64 : kind == KIND_MEMO ? 230 : 170);
+            int minW = dpLocal(kind == KIND_IMAGE ? 64 : kind == KIND_CALENDAR ? 260 : 220);
+            int minH = dpLocal(kind == KIND_IMAGE ? 64 : kind == KIND_CALENDAR ? 300 : kind == KIND_MEMO ? 230 : 170);
 
             boolean fromLeft = resizeCorner == RESIZE_TL || resizeCorner == RESIZE_BL;
             boolean fromTop = resizeCorner == RESIZE_TL || resizeCorner == RESIZE_TR;
@@ -1448,8 +1586,8 @@ public class LockOverlayActivity extends Activity {
 
             int parentW = Math.max(1, parent.getWidth());
             int parentH = Math.max(1, parent.getHeight());
-            int minW = dpLocal(kind == KIND_IMAGE ? 64 : 220);
-            int minH = dpLocal(kind == KIND_IMAGE ? 64 : kind == KIND_MEMO ? 230 : 170);
+            int minW = dpLocal(kind == KIND_IMAGE ? 64 : kind == KIND_CALENDAR ? 260 : 220);
+            int minH = dpLocal(kind == KIND_IMAGE ? 64 : kind == KIND_CALENDAR ? 300 : kind == KIND_MEMO ? 230 : 170);
 
             float cx = getX() + getWidth() / 2f;
             float cy = getY() + getHeight() / 2f;

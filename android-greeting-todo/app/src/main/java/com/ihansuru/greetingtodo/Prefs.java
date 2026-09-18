@@ -68,15 +68,33 @@ final class Prefs {
                 .apply();
     }
 
-    static boolean showImage(Context c) {
-        String mode = mode(c);
-        return MODE_IMAGE.equals(mode) || MODE_BOTH.equals(mode);
+    static boolean todoTabEnabled(Context c) {
+        SharedPreferences p = normal(c);
+        if (p.contains("tab_todo")) return p.getBoolean("tab_todo", true);
+        String m = mode(c);
+        return MODE_TODO.equals(m) || MODE_BOTH.equals(m);
+    }
+    static void setTodoTabEnabled(Context c, boolean v) {
+        normal(c).edit().putBoolean("tab_todo", v).apply();
     }
 
-    static boolean showTodo(Context c) {
-        String mode = mode(c);
-        return MODE_TODO.equals(mode) || MODE_BOTH.equals(mode);
+    static boolean imageTabEnabled(Context c) {
+        SharedPreferences p = normal(c);
+        if (p.contains("tab_image")) return p.getBoolean("tab_image", true);
+        String m = mode(c);
+        return MODE_IMAGE.equals(m) || MODE_BOTH.equals(m);
     }
+    static void setImageTabEnabled(Context c, boolean v) {
+        normal(c).edit().putBoolean("tab_image", v).apply();
+    }
+
+    static boolean calendarEnabled(Context c) { return normal(c).getBoolean("calendar_enabled", true); }
+    static void setCalendarEnabled(Context c, boolean v) { normal(c).edit().putBoolean("calendar_enabled", v).apply(); }
+    static boolean calendarExpanded(Context c) { return normal(c).getBoolean("calendar_expanded", false); }
+    static void setCalendarExpanded(Context c, boolean v) { normal(c).edit().putBoolean("calendar_expanded", v).apply(); }
+
+    static boolean showImage(Context c) { return imageTabEnabled(c); }
+    static boolean showTodo(Context c) { return todoTabEnabled(c); }
 
     static boolean todoExpanded(Context c) {
         SharedPreferences p = normal(c);
@@ -94,6 +112,58 @@ final class Prefs {
     static void setMemoEnabled(Context c, boolean v) { normal(c).edit().putBoolean("memo_enabled", v).apply(); }
     static boolean memoExpanded(Context c) { return normal(c).getBoolean("memo_expanded", false); }
     static void setMemoExpanded(Context c, boolean v) { normal(c).edit().putBoolean("memo_expanded", v).apply(); }
+
+    static int tabSize(Context c) { return clamp(normal(c).getInt("tab_size", 100), 75, 135); }
+    static void setTabSize(Context c, int v) { normal(c).edit().putInt("tab_size", clamp(v, 75, 135)).apply(); }
+
+    static List<String> tabOrder(Context c) {
+        String raw = normal(c).getString("tab_order", "calendar,memo,image");
+        ArrayList<String> out = new ArrayList<>();
+        if (raw != null) {
+            for (String key : raw.split(",")) {
+                if (("calendar".equals(key) || "memo".equals(key) || "image".equals(key))
+                        && !out.contains(key)) out.add(key);
+            }
+        }
+        for (String key : Arrays.asList("calendar", "memo", "image")) if (!out.contains(key)) out.add(key);
+        return out;
+    }
+
+    static void moveTab(Context c, String key, int direction) {
+        ArrayList<String> order = new ArrayList<>(tabOrder(c));
+        int from = order.indexOf(key);
+        if (from < 0) return;
+        int to = clamp(from + direction, 0, order.size() - 1);
+        if (from == to) return;
+        order.remove(from);
+        order.add(to, key);
+        StringBuilder joined = new StringBuilder();
+        for (String item : order) {
+            if (joined.length() > 0) joined.append(',');
+            joined.append(item);
+        }
+        normal(c).edit().putString("tab_order", joined.toString()).apply();
+    }
+
+    static int calendarWidth(Context c) { return clamp(normal(c).getInt("calendar_width", 91), 52, 96); }
+    static int calendarHeight(Context c) { return clamp(normal(c).getInt("calendar_height", 62), 32, 90); }
+    static void setCalendarSize(Context c, int widthPct, int heightPct) {
+        normal(c).edit()
+                .putInt("calendar_width", clamp(widthPct, 52, 96))
+                .putInt("calendar_height", clamp(heightPct, 32, 90))
+                .apply();
+    }
+    static float calendarX(Context c) { return unit(normal(c).getFloat("calendar_x", .48f)); }
+    static float calendarY(Context c) { return unit(normal(c).getFloat("calendar_y", .47f)); }
+    static void setCalendarPosition(Context c, float x, float y) {
+        normal(c).edit().putFloat("calendar_x", unit(x)).putFloat("calendar_y", unit(y)).apply();
+    }
+    static String calendarView(Context c) {
+        return "week".equals(normal(c).getString("calendar_view", "month")) ? "week" : "month";
+    }
+    static void setCalendarView(Context c, String value) {
+        normal(c).edit().putString("calendar_view", "week".equals(value) ? "week" : "month").apply();
+    }
 
     static int imageSize(Context c) { return clamp(normal(c).getInt("image_size", 100), 30, 220); }
     static void setImageSize(Context c, int v) { normal(c).edit().putInt("image_size", clamp(v, 30, 220)).apply(); }
@@ -307,6 +377,11 @@ final class Prefs {
                 .putFloat("todo_scale", 1f)
                 .putFloat("todo_x", .50f)
                 .putFloat("todo_y", .34f)
+                .putInt("calendar_width", 91)
+                .putInt("calendar_height", 62)
+                .putFloat("calendar_x", .48f)
+                .putFloat("calendar_y", .47f)
+                .putString("calendar_view", "month")
                 .putInt("memo_width", 78)
                 .putInt("memo_height", 48)
                 .putFloat("memo_x", .48f)
@@ -319,6 +394,7 @@ final class Prefs {
                 .putFloat("text_scale", 1f)
                 .putFloat("todo_hue", 232f)
                 .putInt("todo_sat", 34)
+                .putInt("tab_size", 100)
                 .putBoolean("tap_dismiss", false)
                 .apply();
     }

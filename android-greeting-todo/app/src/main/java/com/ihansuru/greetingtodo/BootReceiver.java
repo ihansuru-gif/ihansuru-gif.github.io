@@ -12,7 +12,11 @@ public class BootReceiver extends BroadcastReceiver {
         boolean accepted = Intent.ACTION_BOOT_COMPLETED.equals(action)
                 || Intent.ACTION_LOCKED_BOOT_COMPLETED.equals(action)
                 || Intent.ACTION_MY_PACKAGE_REPLACED.equals(action);
-        if (!accepted || !Prefs.enabled(context)) return;
+        if (!accepted) return;
+        if (!Intent.ACTION_LOCKED_BOOT_COMPLETED.equals(action)) {
+            CalendarReminderManager.scheduleAll(context);
+        }
+        if (!Prefs.enabled(context)) return;
         Intent service = new Intent(context, WakeService.class).setAction(WakeService.ACTION_START);
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(service);

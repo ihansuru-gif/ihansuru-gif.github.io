@@ -128,7 +128,7 @@ public class WakeService extends Service {
                     : new Notification.Builder(this).setPriority(Notification.PRIORITY_LOW);
             Notification n = b.setSmallIcon(android.R.drawable.ic_popup_reminder)
                     .setContentTitle("인사앱 실행 중")
-                    .setContentText("화면을 켜면 이미지와 투두를 바로 표시해요")
+                    .setContentText("화면을 켜면 투두·일정·메모·이미지를 바로 표시해요")
                     .setContentIntent(open)
                     .setOngoing(true)
                     .setCategory(Notification.CATEGORY_SERVICE)
@@ -152,7 +152,7 @@ public class WakeService extends Service {
         if (nm == null) return;
         NotificationChannel ch = new NotificationChannel(
                 CHANNEL, "인사앱 화면 감지", NotificationManager.IMPORTANCE_LOW);
-        ch.setDescription("화면을 켜거나 잠금 해제했을 때 설정한 이미지와 투두를 잠깐 표시합니다.");
+        ch.setDescription("화면을 켜거나 잠금 해제했을 때 설정한 투두·일정·메모·이미지를 잠깐 표시합니다.");
         ch.setSound(null, null);
         ch.enableVibration(false);
         nm.createNotificationChannel(ch);
