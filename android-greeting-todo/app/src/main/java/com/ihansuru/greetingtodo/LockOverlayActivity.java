@@ -13,7 +13,6 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
-import android.os.SystemClock;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.Gravity;
@@ -71,7 +70,6 @@ public class LockOverlayActivity extends Activity {
 
     private Runnable finishTask;
     private long remainingMs;
-    private long timerStartedAt;
     private boolean timerScheduled;
     private boolean closing;
 
@@ -139,6 +137,14 @@ public class LockOverlayActivity extends Activity {
         LockOverlayActivity existing = current.get();
         if (existing == this) current = new WeakReference<>(null);
         super.onDestroy();
+    }
+
+    @Override
+    public void onUserInteraction() {
+        super.onUserInteraction();
+        if (closing) return;
+        remainingMs = Prefs.duration(this);
+        if (pauseReasons.isEmpty()) scheduleTimer();
     }
 
     @Override
@@ -912,29 +918,28 @@ public class LockOverlayActivity extends Activity {
     }
 
     private void pause(String reason) {
-        if (pauseReasons.add(reason) && pauseReasons.size() == 1 && timerScheduled) {
-            long elapsed = Math.max(0L, SystemClock.uptimeMillis() - timerStartedAt);
-            remainingMs = Math.max(0L, remainingMs - elapsed);
+        if (pauseReasons.add(reason) && pauseReasons.size() == 1) {
             if (finishTask != null) handler.removeCallbacks(finishTask);
             timerScheduled = false;
         }
+        // Any active edit/typing/drawing session earns a fresh full display window
+        // after the final interaction finishes.
+        remainingMs = Prefs.duration(this);
     }
 
     private void resume(String reason) {
         pauseReasons.remove(reason);
-        if (pauseReasons.isEmpty()) scheduleTimer();
+        if (pauseReasons.isEmpty()) {
+            remainingMs = Prefs.duration(this);
+            scheduleTimer();
+        }
     }
 
     private void scheduleTimer() {
         if (closing || !pauseReasons.isEmpty()) return;
 
         if (finishTask != null) handler.removeCallbacks(finishTask);
-        if (remainingMs <= 0L) {
-            finishOverlay();
-            return;
-        }
-
-        timerStartedAt = SystemClock.uptimeMillis();
+        remainingMs = Math.max(500L, Prefs.duration(this));
         finishTask = this::finishOverlay;
         handler.postDelayed(finishTask, remainingMs);
         timerScheduled = true;
