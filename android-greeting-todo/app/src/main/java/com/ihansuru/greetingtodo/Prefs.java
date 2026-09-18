@@ -115,35 +115,13 @@ final class Prefs {
     static void setTabSize(Context c, int v) { normal(c).edit().putInt("tab_size", clamp(v, 75, 135)).apply(); }
 
     static List<String> tabOrder(Context c) {
-        String raw = normal(c).getString("tab_order", "todo,calendar,memo,image");
-        ArrayList<String> out = new ArrayList<>();
-        if (raw != null) {
-            for (String key : raw.split(",")) {
-                if (("todo".equals(key) || "calendar".equals(key)
-                        || "memo".equals(key) || "image".equals(key))
-                        && !out.contains(key)) out.add(key);
-            }
-        }
-        for (String key : Arrays.asList("todo", "calendar", "memo", "image")) {
-            if (!out.contains(key)) out.add(key);
-        }
-        return out;
+        return TabOrder.normalize(normal(c).getString(
+                "tab_order", "todo,calendar,memo,image"));
     }
 
     static void moveTab(Context c, String key, int direction) {
-        ArrayList<String> order = new ArrayList<>(tabOrder(c));
-        int from = order.indexOf(key);
-        if (from < 0) return;
-        int to = clamp(from + direction, 0, order.size() - 1);
-        if (from == to) return;
-        order.remove(from);
-        order.add(to, key);
-        StringBuilder joined = new StringBuilder();
-        for (String item : order) {
-            if (joined.length() > 0) joined.append(',');
-            joined.append(item);
-        }
-        normal(c).edit().putString("tab_order", joined.toString()).apply();
+        ArrayList<String> order = TabOrder.move(tabOrder(c), key, direction);
+        normal(c).edit().putString("tab_order", TabOrder.serialize(order)).apply();
     }
 
     static int calendarWidth(Context c) { return clamp(normal(c).getInt("calendar_width", 91), 52, 96); }
