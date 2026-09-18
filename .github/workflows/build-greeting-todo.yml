@@ -72,5 +72,7 @@ jobs:
             android-greeting-todo/GreetingTodo-1.5.0-debug.apk
             android-greeting-todo/GreetingTodo-1.5.0-debug.sha256
             android-greeting-todo/app/build/reports/lint-results-debug.html
+            android-greeting-todo/app/build/reports/tests/testDebugUnitTest/**
+            android-greeting-todo/app/build/reports/androidTests/connected/debug/**
           if-no-files-found: error
           retention-days: 14
