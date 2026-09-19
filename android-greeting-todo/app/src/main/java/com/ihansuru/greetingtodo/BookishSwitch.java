@@ -20,6 +20,7 @@ final class BookishSwitch extends View {
     BookishSwitch(Context context) {
         super(context);
         setClickable(true);
+        setLayerType(LAYER_TYPE_SOFTWARE, null);
         setContentDescription("토글");
     }
 
@@ -68,7 +69,6 @@ final class BookishSwitch extends View {
         float cx = checked ? w - pad - knob/2f : pad + knob/2f;
         paint.setColor(Color.WHITE);
         paint.setShadowLayer(dp(2.2f), 0, dp(.7f), Color.argb(42,0,0,0));
-        setLayerType(LAYER_TYPE_SOFTWARE, paint);
         canvas.drawCircle(cx, h/2f, knob/2f, paint);
         paint.clearShadowLayer();
     }
