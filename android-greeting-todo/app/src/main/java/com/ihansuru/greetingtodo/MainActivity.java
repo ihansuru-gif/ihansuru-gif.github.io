@@ -2,6 +2,7 @@ package com.ihansuru.greetingtodo;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.content.res.ColorStateList;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.Typeface;
@@ -13,16 +14,14 @@ import android.provider.Settings;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.Button;
+import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.SeekBar;
-import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import java.util.List;
 import java.util.Locale;
 
 public class MainActivity extends Activity {
@@ -36,7 +35,7 @@ public class MainActivity extends Activity {
     private TextView overlayState;
     private SeekBar durationSeek;
     private SeekBar tabSizeSeek;
-    private Switch enabled;
+    private BookishSwitch enabled;
     private boolean syncing;
     private Bitmap previewBitmap;
 
@@ -63,150 +62,127 @@ public class MainActivity extends Activity {
     private View buildUi() {
         ScrollView scroll = new ScrollView(this);
         scroll.setFillViewport(true);
-        scroll.setBackgroundColor(Color.rgb(247, 248, 252));
+        scroll.setBackgroundColor(DesignTokens.PAPER);
+        scroll.setClipToPadding(false);
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(18), dp(22), dp(18), dp(36));
+        root.setPadding(dp(20), dp(28), dp(20), dp(44));
         scroll.addView(root, new ScrollView.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
-        LinearLayout titleRow = new LinearLayout(this);
-        titleRow.setGravity(Gravity.CENTER_VERTICAL);
-        titleRow.addView(text("인사앱", 29, true, Color.rgb(28, 38, 58)),
-                new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
-        TextView version = text("v1.5.0", 12.5f, true, Color.rgb(112, 94, 202));
-        version.setPadding(dp(10), dp(5), dp(10), dp(5));
-        version.setBackground(rounded(Color.rgb(242, 239, 255), dp(14), Color.rgb(222, 215, 247), 1));
-        titleRow.addView(version);
-        root.addView(titleRow);
+        buildHero(root);
 
-        TextView subtitle = text(
-                "화면을 켜면 필요한 기능만 띠지에서 바로 열 수 있어요",
-                13, false, Color.rgb(104, 113, 132));
-        LinearLayout.LayoutParams slp = wrap();
-        slp.setMargins(0, dp(4), 0, dp(18));
-        root.addView(subtitle, slp);
-
-        LinearLayout tabsCard = card();
-        tabsCard.addView(text("띠지 관리", 17, true, dark()));
-        tabsCard.addView(caption("보일 기능을 직접 고르고 네 띠지 순서를 정해요"));
+        LinearLayout tabs = section("띠지 관리", "책의 인덱스처럼 필요한 기능만 곁에 두세요.");
         tabRows = new LinearLayout(this);
         tabRows.setOrientation(LinearLayout.VERTICAL);
-        LinearLayout.LayoutParams trlp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        trlp.setMargins(0, dp(8), 0, 0);
-        tabsCard.addView(tabRows, trlp);
+        tabs.addView(tabRows, matchWrap(dp(10), 0));
 
-        LinearLayout tabSizeRow = new LinearLayout(this);
-        tabSizeRow.setGravity(Gravity.CENTER_VERTICAL);
-        tabSizeRow.addView(text("띠지 크기", 13.5f, true, dark()),
-                new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
-        tabSizeValue = text("100%", 12.5f, true, Color.rgb(112, 94, 202));
-        tabSizeRow.addView(tabSizeValue);
-        tabsCard.addView(tabSizeRow, matchWrap(dp(9), 0));
+        LinearLayout tabSizeHeader = compactHeader("띠지 크기");
+        tabSizeValue = smallValue("100%");
+        tabSizeHeader.addView(tabSizeValue);
+        tabs.addView(tabSizeHeader, matchWrap(dp(14), 0));
 
         tabSizeSeek = new SeekBar(this);
         tabSizeSeek.setMax(60);
-        tabsCard.addView(tabSizeSeek, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(42)));
+        styleSeek(tabSizeSeek, DesignTokens.TODO);
+        tabs.addView(tabSizeSeek, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(40)));
 
-        Button edit = primary("실제 화면에서 위치·크기 편집");
-        tabsCard.addView(edit, buttonLp(dp(8)));
-        tabsCard.addView(caption(
-                "카드 위쪽 작은 이동선으로 옮기고, 오른쪽 아래 // 손잡이로 크기를 조절해요"),
-                matchWrap(dp(6), 0));
-        root.addView(tabsCard, cardLp(0));
+        TextView directEdit = actionButton("실제 화면에서 위치·크기 편집",
+                BookishIconView.EDIT, DesignTokens.INK, DesignTokens.SURFACE_SOFT, false);
+        tabs.addView(directEdit, actionLp(dp(10)));
+        TextView hint = caption("위쪽 이동선으로 옮기고, 오른쪽 아래 // 손잡이로 크기를 조절해요.");
+        tabs.addView(hint, matchWrap(dp(8), 0));
+        root.addView(tabs, sectionLp(0));
 
-        LinearLayout calendarCard = card();
-        calendarCard.addView(text("일정표", 17, true, dark()));
-        calendarCard.addView(caption("주간·월간 버튼 전환 · 날짜 드래그로 기간 지정"));
-        calendarCard.addView(caption("기간 색선 · 겹치는 일정 레인 · 반복 · 알림 · 검색"));
-        Button openCalendar = softButton("일정 바로 열기");
-        calendarCard.addView(openCalendar, buttonLp(dp(10)));
-        root.addView(calendarCard, cardLp(dp(12)));
+        LinearLayout lock = section("잠금화면", "원래 배경은 그대로, 필요한 정보만 가볍게 올립니다.");
 
-        LinearLayout memoCard = card();
-        memoCard.addView(text("메모", 17, true, dark()));
-        memoCard.addView(caption("서식 · 체크리스트 · 검색 · 태그 · 보관함 · 이미지 · 링크"));
-        memoCard.addView(caption("펜/연필/형광펜 · Undo/Redo · 무지/줄/격자 · 음성메모"));
-        Button openMemo = softButton("메모 바로 열기");
-        memoCard.addView(openMemo, buttonLp(dp(10)));
-        root.addView(memoCard, cardLp(dp(12)));
+        LinearLayout enableRow = settingRow(BookishIconView.LOCK, "화면을 켤 때 인사앱 표시",
+                "잠금화면과 일반 화면 위에 투명하게 표시");
+        enabled = new BookishSwitch(this);
+        enabled.setAccent(DesignTokens.TODO);
+        ((LinearLayout) enableRow).addView(enabled,
+                new LinearLayout.LayoutParams(dp(46), dp(44)));
+        lock.addView(enableRow);
 
-        LinearLayout imageCard = card();
+        lock.addView(divider(), dividerLp());
+
+        LinearLayout durationHeader = compactHeader("표시 시간");
+        durationValue = smallValue("4.0초");
+        durationHeader.addView(durationValue);
+        lock.addView(durationHeader, matchWrap(dp(12), 0));
+
+        durationSeek = new SeekBar(this);
+        durationSeek.setMax(95);
+        styleSeek(durationSeek, DesignTokens.CALENDAR);
+        lock.addView(durationSeek, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(40)));
+
+        TextView timerCaption = caption(
+                "입력·낙서·녹음·일정 선택·이동·크기 조절 중에는 종료가 멈추고, 조작이 끝나면 처음부터 다시 셉니다.");
+        lock.addView(timerCaption, matchWrap(dp(3), 0));
+        root.addView(lock, sectionLp(dp(14)));
+
+        LinearLayout features = section("기능", "각 카드의 내용을 확인하고 바로 열 수 있어요.");
+        features.addView(featureRow("todo", "투두", "할 일과 카테고리를 빠르게 확인"));
+        features.addView(divider(), dividerLp());
+        View calendarRow = featureRow("calendar", "일정", "주간·월간·기간 일정과 알림");
+        features.addView(calendarRow);
+        features.addView(divider(), dividerLp());
+        View memoRow = featureRow("memo", "메모", "텍스트·체크·낙서·링크·음성");
+        features.addView(memoRow);
+        root.addView(features, sectionLp(dp(14)));
+
+        LinearLayout image = section("이미지", "잠금화면에 두고 싶은 이미지를 선택합니다.");
         LinearLayout imageHeader = new LinearLayout(this);
         imageHeader.setGravity(Gravity.CENTER_VERTICAL);
-        imageHeader.addView(text("이미지", 17, true, dark()),
-                new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
-        Button choose = softButton("이미지 선택");
-        imageHeader.addView(choose, new LinearLayout.LayoutParams(dp(108), dp(42)));
-        imageCard.addView(imageHeader);
+        imageHeader.addView(iconLabel("image", "이미지 카드"),
+                new LinearLayout.LayoutParams(0, dp(44), 1));
+        TextView choose = smallAction("이미지 선택", DesignTokens.IMAGE);
+        imageHeader.addView(choose, new LinearLayout.LayoutParams(dp(104), dp(38)));
+        image.addView(imageHeader);
 
         imagePreview = new ImageView(this);
         imagePreview.setScaleType(ImageView.ScaleType.FIT_CENTER);
         imagePreview.setBackground(rounded(
-                Color.rgb(244, 246, 250), dp(18), Color.rgb(229, 233, 240), 1));
+                DesignTokens.SURFACE_SOFT, dp(16), DesignTokens.BORDER, dp(1)));
         LinearLayout.LayoutParams previewLp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(175));
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(170));
         previewLp.setMargins(0, dp(10), 0, 0);
-        imageCard.addView(imagePreview, previewLp);
+        image.addView(imagePreview, previewLp);
+
         imageState = caption("");
-        imageCard.addView(imageState, matchWrap(dp(7), 0));
-        root.addView(imageCard, cardLp(dp(12)));
+        image.addView(imageState, matchWrap(dp(8), 0));
+        root.addView(image, sectionLp(dp(14)));
 
-        LinearLayout settingsCard = card();
-        settingsCard.addView(text("표시 설정", 17, true, dark()));
+        LinearLayout permission = section("권한", "필요한 권한만 직접 확인할 수 있어요.");
+        LinearLayout permissionRow = settingRow(BookishIconView.SETTINGS,
+                "다른 앱 위에 표시", "잠금화면 위 카드 표시에 필요");
+        overlayState = smallValue("");
+        LinearLayout.LayoutParams stateLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, dp(42));
+        stateLp.setMargins(dp(8), 0, dp(8), 0);
+        ((LinearLayout) permissionRow).addView(overlayState, stateLp);
+        TextView permissionOpen = smallAction("권한 열기", DesignTokens.INK);
+        ((LinearLayout) permissionRow).addView(permissionOpen,
+                new LinearLayout.LayoutParams(dp(88), dp(38)));
+        permission.addView(permissionRow);
+        root.addView(permission, sectionLp(dp(14)));
 
-        LinearLayout durationRow = new LinearLayout(this);
-        durationRow.setGravity(Gravity.CENTER_VERTICAL);
-        durationRow.addView(text("표시 시간", 13.5f, true, dark()),
-                new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
-        durationValue = text("4.0초", 12.5f, true, Color.rgb(112, 94, 202));
-        durationRow.addView(durationValue);
-        settingsCard.addView(durationRow, matchWrap(dp(10), 0));
+        TextView preview = actionButton("실제 표시 미리보기",
+                BookishIconView.EDIT, Color.WHITE, DesignTokens.INK, true);
+        LinearLayout.LayoutParams previewActionLp = actionLp(dp(20));
+        previewActionLp.height = dp(54);
+        root.addView(preview, previewActionLp);
 
-        durationSeek = new SeekBar(this);
-        durationSeek.setMax(95);
-        settingsCard.addView(durationSeek, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(44)));
-
-        settingsCard.addView(caption(
-                "입력·낙서·녹음·일정 기간 선택·편집·이동·크기 조절 중에는 자동 종료가 멈춰요"),
-                matchWrap(dp(5), dp(4)));
-        settingsCard.addView(caption(
-                "조작이 끝나면 설정한 표시 시간이 처음부터 다시 시작돼요"),
-                matchWrap(dp(2), dp(4)));
-
-        enabled = new Switch(this);
-        enabled.setText("화면을 켤 때 인사앱 표시");
-        enabled.setTextSize(14);
-        enabled.setTextColor(dark());
-        enabled.setGravity(Gravity.CENTER_VERTICAL);
-        settingsCard.addView(enabled, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(54)));
-        root.addView(settingsCard, cardLp(dp(12)));
-
-        LinearLayout permissionCard = card();
-        LinearLayout permissionRow = new LinearLayout(this);
-        permissionRow.setGravity(Gravity.CENTER_VERTICAL);
-        LinearLayout permissionText = new LinearLayout(this);
-        permissionText.setOrientation(LinearLayout.VERTICAL);
-        permissionText.addView(text("다른 앱 위에 표시", 15, true, dark()));
-        overlayState = caption("");
-        permissionText.addView(overlayState);
-        permissionRow.addView(permissionText,
-                new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
-        Button permission = softButton("권한 열기");
-        permissionRow.addView(permission, new LinearLayout.LayoutParams(dp(100), dp(42)));
-        permissionCard.addView(permissionRow);
-        root.addView(permissionCard, cardLp(dp(12)));
-
-        Button preview = primary("실제 표시 미리보기");
-        LinearLayout.LayoutParams pLp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(56));
-        pLp.setMargins(0, dp(16), 0, 0);
-        root.addView(preview, pLp);
+        TextView footer = text("오늘의 작은 정리가, 더 나은 내일을 만듭니다.",
+                12.5f, false, DesignTokens.SECONDARY);
+        footer.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams footerLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(54));
+        footerLp.setMargins(0, dp(14), 0, 0);
+        root.addView(footer, footerLp);
 
         tabSizeSeek.setOnSeekBarChangeListener(new SimpleSeek() {
             @Override public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
@@ -223,24 +199,24 @@ public class MainActivity extends Activity {
             }
         });
 
-        edit.setOnClickListener(v -> showDirectEdit());
-        openCalendar.setOnClickListener(v -> {
+        directEdit.setOnClickListener(v -> showDirectEdit());
+        calendarRow.setOnClickListener(v -> {
             Prefs.setCalendarEnabled(this, true);
             Prefs.setCalendarExpanded(this, true);
             rebuildTabRows();
             showPreview();
         });
-        openMemo.setOnClickListener(v -> {
+        memoRow.setOnClickListener(v -> {
             Prefs.setMemoEnabled(this, true);
             Prefs.setMemoExpanded(this, true);
             rebuildTabRows();
             showPreview();
         });
         choose.setOnClickListener(v -> pickImage());
-        permission.setOnClickListener(v -> openOverlayPermission());
+        permissionOpen.setOnClickListener(v -> openOverlayPermission());
         preview.setOnClickListener(v -> showPreview());
 
-        enabled.setOnCheckedChangeListener((b, checked) -> {
+        enabled.setListener(checked -> {
             if (syncing) return;
             if (checked && !readyToEnable()) {
                 syncing = true;
@@ -256,49 +232,160 @@ public class MainActivity extends Activity {
         return scroll;
     }
 
+    private void buildHero(LinearLayout root) {
+        LinearLayout top = new LinearLayout(this);
+        top.setGravity(Gravity.TOP);
+
+        LinearLayout titles = new LinearLayout(this);
+        titles.setOrientation(LinearLayout.VERTICAL);
+        TextView eyebrow = text("잠금화면, 나만의 작은 책상", 12.5f, false, DesignTokens.SECONDARY);
+        titles.addView(eyebrow);
+
+        TextView title = text("인사앱", 30f, true, DesignTokens.INK);
+        LinearLayout.LayoutParams titleLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        titleLp.setMargins(0, dp(3), 0, 0);
+        titles.addView(title, titleLp);
+
+        TextView tagline = text("오늘도, 좋은 하루를 정리해요.", 15f, true, DesignTokens.INK);
+        LinearLayout.LayoutParams tagLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        tagLp.setMargins(0, dp(8), 0, 0);
+        titles.addView(tagline, tagLp);
+
+        top.addView(titles, new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+
+        TextView version = text("v1.6.0", 11.5f, true, DesignTokens.SECONDARY);
+        version.setGravity(Gravity.CENTER);
+        version.setBackground(rounded(
+                DesignTokens.SURFACE_SOFT, dp(12), DesignTokens.BORDER, dp(1)));
+        top.addView(version, new LinearLayout.LayoutParams(dp(64), dp(30)));
+
+        root.addView(top);
+
+        TextView intro = caption(
+                "투두, 일정, 메모, 이미지를 한눈에. 책을 펼치듯 필요한 것만 조용히 꺼내 쓰는 잠금화면 도구입니다.");
+        intro.setLineSpacing(0f, 1.18f);
+        LinearLayout.LayoutParams introLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        introLp.setMargins(0, dp(12), 0, dp(22));
+        root.addView(intro, introLp);
+    }
+
+    private LinearLayout section(String title, String subtitle) {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(dp(16), dp(15), dp(16), dp(16));
+        box.setBackground(rounded(
+                DesignTokens.SURFACE, dp(18), DesignTokens.BORDER, dp(1)));
+        box.setElevation(dp(.5f));
+
+        box.addView(text(title, 16.5f, true, DesignTokens.INK));
+        if (subtitle != null && !subtitle.isEmpty()) {
+            TextView sub = caption(subtitle);
+            sub.setLineSpacing(0f, 1.12f);
+            box.addView(sub, matchWrap(dp(4), 0));
+        }
+        return box;
+    }
+
+    private View featureRow(String key, String title, String subtitle) {
+        LinearLayout row = new LinearLayout(this);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(0, dp(5), 0, dp(5));
+
+        BookishIconView icon = new BookishIconView(this, iconType(key));
+        icon.setIconColor(DesignTokens.accent(key));
+        FrameLayout iconSurface = iconSurface(icon, key);
+        row.addView(iconSurface, new LinearLayout.LayoutParams(dp(42), dp(42)));
+
+        LinearLayout copy = new LinearLayout(this);
+        copy.setOrientation(LinearLayout.VERTICAL);
+        copy.setPadding(dp(12), 0, dp(8), 0);
+        copy.addView(text(title, 14.5f, true, DesignTokens.INK));
+        copy.addView(text(subtitle, 12f, false, DesignTokens.SECONDARY));
+        row.addView(copy, new LinearLayout.LayoutParams(0, dp(48), 1));
+
+        BookishIconView arrow = new BookishIconView(this, BookishIconView.DOWN);
+        arrow.setRotation(-90f);
+        arrow.setIconColor(DesignTokens.MUTED);
+        row.addView(arrow, new LinearLayout.LayoutParams(dp(30), dp(30)));
+        row.setBackground(pressableSurface(Color.TRANSPARENT,
+                DesignTokens.blend(DesignTokens.soft(key), DesignTokens.PAPER, .45f), dp(12)));
+        row.setClickable(true);
+        return row;
+    }
+
+    private View settingRow(int iconType, String title, String subtitle) {
+        LinearLayout row = new LinearLayout(this);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(0, dp(4), 0, dp(4));
+
+        BookishIconView icon = new BookishIconView(this, iconType);
+        icon.setIconColor(DesignTokens.SECONDARY);
+        FrameLayout iconSurface = new FrameLayout(this);
+        iconSurface.setBackground(rounded(
+                DesignTokens.SURFACE_SOFT, dp(11), DesignTokens.BORDER, dp(1)));
+        FrameLayout.LayoutParams ilp = new FrameLayout.LayoutParams(dp(23), dp(23), Gravity.CENTER);
+        iconSurface.addView(icon, ilp);
+        row.addView(iconSurface, new LinearLayout.LayoutParams(dp(40), dp(40)));
+
+        LinearLayout copy = new LinearLayout(this);
+        copy.setOrientation(LinearLayout.VERTICAL);
+        copy.setPadding(dp(11), 0, dp(8), 0);
+        copy.addView(text(title, 14f, true, DesignTokens.INK));
+        copy.addView(text(subtitle, 11.7f, false, DesignTokens.SECONDARY));
+        row.addView(copy, new LinearLayout.LayoutParams(0, dp(48), 1));
+        return row;
+    }
+
     private void rebuildTabRows() {
         if (tabRows == null) return;
         tabRows.removeAllViews();
 
         for (String key : Prefs.tabOrder(this)) {
-            if ("todo".equals(key)) {
-                tabRows.addView(tabRow(key, "✓  투두", Prefs.todoTabEnabled(this)));
-            } else if ("calendar".equals(key)) {
-                tabRows.addView(tabRow(key, "▣  일정", Prefs.calendarEnabled(this)));
-            } else if ("memo".equals(key)) {
-                tabRows.addView(tabRow(key, "✎  메모", Prefs.memoEnabled(this)));
-            } else if ("image".equals(key)) {
-                tabRows.addView(tabRow(key, "▧  이미지", Prefs.imageTabEnabled(this)));
-            }
+            boolean checked = "todo".equals(key) ? Prefs.todoTabEnabled(this)
+                    : "calendar".equals(key) ? Prefs.calendarEnabled(this)
+                    : "memo".equals(key) ? Prefs.memoEnabled(this)
+                    : Prefs.imageTabEnabled(this);
+            tabRows.addView(tabRow(key, checked));
         }
     }
 
-    private View tabRow(String key, String label, boolean checked) {
+    private View tabRow(String key, boolean checked) {
         LinearLayout row = new LinearLayout(this);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(dp(3), dp(2), dp(3), dp(2));
+        row.setPadding(dp(8), dp(3), dp(6), dp(3));
+        row.setBackground(rounded(
+                DesignTokens.soft(key), dp(14),
+                DesignTokens.alpha(DesignTokens.accent(key), 66), dp(1)));
 
-        int accent = tabAccent(key);
-        int surface = tabSurface(key);
-        row.setBackground(rounded(surface, dp(15), blendColor(surface, accent, .20f), 1));
+        BookishIconView icon = new BookishIconView(this, iconType(key));
+        icon.setIconColor(DesignTokens.accent(key));
+        row.addView(icon, new LinearLayout.LayoutParams(dp(28), dp(28)));
 
-        Switch toggle = new Switch(this);
-        toggle.setText(label);
-        toggle.setTextSize(14);
-        toggle.setTextColor(dark());
+        TextView label = text(tabLabel(key), 14f, true, DesignTokens.INK);
+        LinearLayout.LayoutParams labelLp = new LinearLayout.LayoutParams(
+                0, dp(46), 1);
+        labelLp.setMargins(dp(10), 0, 0, 0);
+        row.addView(label, labelLp);
+
+        BookishSwitch toggle = new BookishSwitch(this);
+        toggle.setAccent(DesignTokens.accent(key));
         toggle.setChecked(checked);
-        row.addView(toggle, new LinearLayout.LayoutParams(0, dp(48), 1));
+        row.addView(toggle, new LinearLayout.LayoutParams(dp(46), dp(42)));
 
-        Button up = softButton("↑");
-        Button down = softButton("↓");
-        up.setTextColor(accent);
-        down.setTextColor(accent);
-        up.setBackground(rounded(Color.argb(230,255,255,255), dp(12), blendColor(Color.WHITE, accent, .24f), 1));
-        down.setBackground(rounded(Color.argb(230,255,255,255), dp(12), blendColor(Color.WHITE, accent, .24f), 1));
-        row.addView(up, new LinearLayout.LayoutParams(dp(42), dp(40)));
-        LinearLayout.LayoutParams dlp = new LinearLayout.LayoutParams(dp(42), dp(40));
-        dlp.setMargins(dp(3), 0, 0, 0);
-        row.addView(down, dlp);
+        View up = iconButton(BookishIconView.UP, DesignTokens.accent(key));
+        LinearLayout.LayoutParams upLp = new LinearLayout.LayoutParams(dp(38), dp(38));
+        upLp.setMargins(dp(7), 0, 0, 0);
+        row.addView(up, upLp);
+
+        View down = iconButton(BookishIconView.DOWN, DesignTokens.accent(key));
+        LinearLayout.LayoutParams downLp = new LinearLayout.LayoutParams(dp(38), dp(38));
+        downLp.setMargins(dp(4), 0, 0, 0);
+        row.addView(down, downLp);
+
         up.setOnClickListener(v -> {
             Prefs.moveTab(this, key, -1);
             rebuildTabRows();
@@ -307,41 +394,80 @@ public class MainActivity extends Activity {
             Prefs.moveTab(this, key, 1);
             rebuildTabRows();
         });
-
-        toggle.setOnCheckedChangeListener((button, value) -> {
+        toggle.setListener(value -> {
             if ("todo".equals(key)) Prefs.setTodoTabEnabled(this, value);
             else if ("calendar".equals(key)) Prefs.setCalendarEnabled(this, value);
             else if ("memo".equals(key)) Prefs.setMemoEnabled(this, value);
-            else if ("image".equals(key)) Prefs.setImageTabEnabled(this, value);
+            else Prefs.setImageTabEnabled(this, value);
         });
 
         LinearLayout.LayoutParams rowLp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, dp(54));
-        rowLp.setMargins(0, dp(3), 0, dp(3));
+        rowLp.setMargins(0, dp(4), 0, 0);
         row.setLayoutParams(rowLp);
         return row;
     }
 
-    private int tabAccent(String key) {
-        if ("todo".equals(key)) return Color.rgb(88, 126, 214);
-        if ("calendar".equals(key)) return Color.rgb(126, 101, 211);
-        if ("memo".equals(key)) return Color.rgb(184, 117, 75);
-        return Color.rgb(75, 139, 114);
+    private View iconButton(int type, int accent) {
+        FrameLayout frame = new FrameLayout(this);
+        frame.setBackground(pressableSurface(
+                Color.argb(224,255,255,255),
+                DesignTokens.blend(Color.WHITE, accent, .12f),
+                dp(11)));
+        frame.setClickable(true);
+        BookishIconView icon = new BookishIconView(this, type);
+        icon.setIconColor(DesignTokens.blend(accent, DesignTokens.INK, .22f));
+        frame.addView(icon, new FrameLayout.LayoutParams(dp(20), dp(20), Gravity.CENTER));
+        return frame;
     }
 
-    private int tabSurface(String key) {
-        if ("todo".equals(key)) return Color.rgb(237, 244, 255);
-        if ("calendar".equals(key)) return Color.rgb(242, 238, 255);
-        if ("memo".equals(key)) return Color.rgb(255, 243, 233);
-        return Color.rgb(234, 246, 240);
+    private FrameLayout iconSurface(BookishIconView icon, String key) {
+        FrameLayout frame = new FrameLayout(this);
+        frame.setBackground(rounded(
+                DesignTokens.soft(key), dp(12),
+                DesignTokens.alpha(DesignTokens.accent(key), 58), dp(1)));
+        frame.addView(icon, new FrameLayout.LayoutParams(dp(23), dp(23), Gravity.CENTER));
+        return frame;
     }
 
-    private int blendColor(int a, int b, float amount) {
-        float t = Math.max(0f, Math.min(1f, amount));
-        return Color.rgb(
-                Math.round(Color.red(a) * (1f - t) + Color.red(b) * t),
-                Math.round(Color.green(a) * (1f - t) + Color.green(b) * t),
-                Math.round(Color.blue(a) * (1f - t) + Color.blue(b) * t));
+    private TextView iconLabel(String key, String title) {
+        TextView label = text(title, 14.5f, true, DesignTokens.INK);
+        label.setCompoundDrawablePadding(dp(8));
+        return label;
+    }
+
+    private LinearLayout compactHeader(String label) {
+        LinearLayout row = new LinearLayout(this);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.addView(text(label, 13.5f, true, DesignTokens.INK),
+                new LinearLayout.LayoutParams(0, dp(30), 1));
+        return row;
+    }
+
+    private TextView actionButton(String label, int iconType, int textColor,
+                                  int backgroundColor, boolean dark) {
+        TextView button = text(label, 14f, true, textColor);
+        button.setGravity(Gravity.CENTER);
+        button.setBackground(pressableSurface(
+                backgroundColor,
+                dark ? Color.rgb(59,61,67) : DesignTokens.PAPER,
+                dp(14)));
+        button.setClickable(true);
+        button.setFocusable(true);
+        return button;
+    }
+
+    private TextView smallAction(String label, int accent) {
+        TextView button = text(label, 12.5f, true,
+                DesignTokens.blend(accent, DesignTokens.INK, .35f));
+        button.setGravity(Gravity.CENTER);
+        button.setBackground(pressableSurface(
+                DesignTokens.soft(accent == DesignTokens.IMAGE ? "image"
+                        : accent == DesignTokens.CALENDAR ? "calendar"
+                        : accent == DesignTokens.MEMO ? "memo" : "todo"),
+                Color.WHITE, dp(12)));
+        button.setClickable(true);
+        return button;
     }
 
     private void syncUi() {
@@ -358,8 +484,8 @@ public class MainActivity extends Activity {
         boolean overlayAllowed = Settings.canDrawOverlays(this);
         overlayState.setText(overlayAllowed ? "허용됨" : "허용 필요");
         overlayState.setTextColor(overlayAllowed
-                ? Color.rgb(41, 151, 101)
-                : Color.rgb(207, 115, 49));
+                ? Color.rgb(73, 132, 103)
+                : Color.rgb(175, 109, 71));
         refreshImagePreview();
     }
 
@@ -371,7 +497,7 @@ public class MainActivity extends Activity {
             imageState.setText("이미지 준비 완료");
         } else {
             imagePreview.setImageDrawable(null);
-            imageState.setText("이미지를 선택해 주세요");
+            imageState.setText("선택한 이미지가 없어요");
         }
     }
 
@@ -390,7 +516,7 @@ public class MainActivity extends Activity {
             toast("실제 화면을 열지 못했어요");
             return;
         }
-        toast("띠지를 길게 누르거나 카드의 ⚙️를 눌러 위치·크기를 편집해요");
+        toast("카드 위쪽 이동선과 오른쪽 아래 손잡이로 바로 편집할 수 있어요");
     }
 
     private void showPreview() {
@@ -448,18 +574,41 @@ public class MainActivity extends Activity {
         OverlayManager.hide(this);
     }
 
-    private LinearLayout card() {
-        LinearLayout v = new LinearLayout(this);
-        v.setOrientation(LinearLayout.VERTICAL);
-        v.setPadding(dp(16), dp(16), dp(16), dp(16));
-        v.setBackground(rounded(Color.WHITE, dp(22), Color.rgb(230, 233, 240), 1));
-        v.setElevation(dp(1));
+    private void styleSeek(SeekBar seek, int accent) {
+        seek.setProgressTintList(ColorStateList.valueOf(accent));
+        seek.setThumbTintList(ColorStateList.valueOf(accent));
+        seek.setProgressBackgroundTintList(ColorStateList.valueOf(Color.rgb(222, 220, 216)));
+        seek.setPadding(0, 0, 0, 0);
+    }
+
+    private GradientDrawable pressableSurface(int normal, int pressed, float radius) {
+        GradientDrawable g = rounded(normal, radius, DesignTokens.BORDER, dp(1));
+        return g;
+    }
+
+    private View divider() {
+        View v = new View(this);
+        v.setBackgroundColor(Color.rgb(236, 233, 228));
         return v;
     }
 
-    private LinearLayout.LayoutParams cardLp(int top) {
+    private LinearLayout.LayoutParams dividerLp() {
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(1));
+        lp.setMargins(dp(4), dp(7), dp(4), dp(7));
+        return lp;
+    }
+
+    private LinearLayout.LayoutParams sectionLp(int top) {
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.setMargins(0, top, 0, 0);
+        return lp;
+    }
+
+    private LinearLayout.LayoutParams actionLp(int top) {
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(48));
         lp.setMargins(0, top, 0, 0);
         return lp;
     }
@@ -471,55 +620,24 @@ public class MainActivity extends Activity {
         return lp;
     }
 
-    private LinearLayout.LayoutParams wrap() {
-        return new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+    private TextView caption(String value) {
+        return text(value, 12.2f, false, DesignTokens.SECONDARY);
     }
 
-    private LinearLayout.LayoutParams buttonLp(int top) {
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(50));
-        lp.setMargins(0, top, 0, 0);
-        return lp;
-    }
-
-    private TextView caption(String s) {
-        return text(s, 12.3f, false, Color.rgb(111, 119, 136));
-    }
-
-    private TextView text(String s, float size, boolean bold, int color) {
-        TextView t = new TextView(this);
-        t.setText(s);
-        t.setTextSize(size);
-        t.setTextColor(color);
-        t.setGravity(Gravity.CENTER_VERTICAL);
-        if (bold) t.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+    private TextView smallValue(String value) {
+        TextView t = text(value, 12.5f, true, DesignTokens.SECONDARY);
+        t.setGravity(Gravity.CENTER_VERTICAL | Gravity.END);
         return t;
     }
 
-    private Button primary(String s) {
-        Button b = new Button(this);
-        b.setText(s);
-        b.setTextSize(14.5f);
-        b.setTextColor(Color.WHITE);
-        b.setAllCaps(false);
-        GradientDrawable g = new GradientDrawable(
-                GradientDrawable.Orientation.LEFT_RIGHT,
-                new int[]{Color.rgb(122, 112, 233), Color.rgb(174, 126, 220)});
-        g.setCornerRadius(dp(16));
-        b.setBackground(g);
-        return b;
-    }
-
-    private Button softButton(String s) {
-        Button b = new Button(this);
-        b.setText(s);
-        b.setTextSize(12.5f);
-        b.setTextColor(dark());
-        b.setAllCaps(false);
-        b.setPadding(dp(4), 0, dp(4), 0);
-        b.setBackground(rounded(Color.rgb(248, 247, 251), dp(14), Color.rgb(226, 223, 233), 1));
-        return b;
+    private TextView text(String value, float size, boolean bold, int color) {
+        TextView t = new TextView(this);
+        t.setText(value);
+        t.setTextSize(size);
+        t.setTextColor(color);
+        t.setGravity(Gravity.CENTER_VERTICAL);
+        t.setTypeface(Typeface.create("sans-serif", bold ? Typeface.BOLD : Typeface.NORMAL));
+        return t;
     }
 
     private GradientDrawable rounded(int color, float radius, int stroke, int strokeWidth) {
@@ -530,9 +648,27 @@ public class MainActivity extends Activity {
         return g;
     }
 
-    private int dark() { return Color.rgb(43, 49, 65); }
-    private int dp(float v) { return Math.round(v * getResources().getDisplayMetrics().density); }
-    private void toast(String s) { Toast.makeText(this, s, Toast.LENGTH_SHORT).show(); }
+    private int iconType(String key) {
+        if ("todo".equals(key)) return BookishIconView.TODO;
+        if ("calendar".equals(key)) return BookishIconView.CALENDAR;
+        if ("memo".equals(key)) return BookishIconView.MEMO;
+        return BookishIconView.IMAGE;
+    }
+
+    private String tabLabel(String key) {
+        if ("todo".equals(key)) return "투두";
+        if ("calendar".equals(key)) return "일정";
+        if ("memo".equals(key)) return "메모";
+        return "이미지";
+    }
+
+    private int dp(float value) {
+        return Math.round(value * getResources().getDisplayMetrics().density);
+    }
+
+    private void toast(String value) {
+        Toast.makeText(this, value, Toast.LENGTH_SHORT).show();
+    }
 
     private abstract static class SimpleSeek implements SeekBar.OnSeekBarChangeListener {
         @Override public void onStartTrackingTouch(SeekBar seekBar) {}
