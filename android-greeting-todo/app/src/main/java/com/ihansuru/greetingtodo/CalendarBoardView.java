@@ -97,19 +97,19 @@ final class CalendarBoardView extends FrameLayout {
 
         main = new LinearLayout(getContext());
         main.setOrientation(LinearLayout.VERTICAL);
-        main.setPadding(dp(12), dp(11), dp(12), dp(12));
-        main.setBackground(rounded(Color.rgb(255, 255, 255), dp(24), Color.rgb(224, 226, 235), dp(1)));
+        main.setPadding(dp(16), dp(14), dp(16), dp(16));
+        main.setBackground(rounded(DesignTokens.SURFACE, dp(18), DesignTokens.BORDER, dp(1)));
         addView(main, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
         LinearLayout header = new LinearLayout(getContext());
         header.setGravity(Gravity.CENTER_VERTICAL);
-        monthLabel = text("", 16.5f, true, Color.rgb(49, 54, 68));
+        monthLabel = text("", 17f, true, DesignTokens.INK);
         header.addView(monthLabel, new LinearLayout.LayoutParams(0, dp(40), 1));
-        Button add = soft("+ 일정");
-        header.addView(add, new LinearLayout.LayoutParams(dp(76), dp(38)));
-        Button gear = soft("⚙");
-        LinearLayout.LayoutParams glp = new LinearLayout.LayoutParams(dp(44), dp(38));
+        Button add = soft("일정 추가");
+        header.addView(add, new LinearLayout.LayoutParams(dp(86), dp(38)));
+        Button gear = soft("설정");
+        LinearLayout.LayoutParams glp = new LinearLayout.LayoutParams(dp(58), dp(38));
         glp.setMargins(dp(5), 0, 0, 0);
         header.addView(gear, glp);
         main.addView(header);
@@ -141,8 +141,10 @@ final class CalendarBoardView extends FrameLayout {
         searchEdit.setSingleLine(true);
         searchEdit.setHint("일정 검색");
         searchEdit.setTextSize(12.5f);
-        searchEdit.setPadding(dp(10), 0, dp(8), 0);
-        searchEdit.setBackground(rounded(Color.rgb(248, 249, 252), dp(13), Color.rgb(228, 230, 237), dp(1)));
+        searchEdit.setTextColor(DesignTokens.INK);
+        searchEdit.setHintTextColor(DesignTokens.MUTED);
+        searchEdit.setPadding(dp(11), 0, dp(8), 0);
+        searchEdit.setBackground(rounded(DesignTokens.SURFACE_SOFT, dp(12), DesignTokens.BORDER, dp(1)));
         searchRow.addView(searchEdit, new LinearLayout.LayoutParams(0, dp(38), 1));
         filterButton = soft("전체");
         LinearLayout.LayoutParams flp = new LinearLayout.LayoutParams(dp(74), dp(38));
@@ -210,14 +212,14 @@ final class CalendarBoardView extends FrameLayout {
     private void buildEditor() {
         editor = new LinearLayout(getContext());
         editor.setOrientation(LinearLayout.VERTICAL);
-        editor.setPadding(dp(14), dp(12), dp(14), dp(14));
-        editor.setBackground(rounded(Color.rgb(255, 253, 250), dp(24), Color.rgb(219, 215, 229), dp(1)));
-        editor.setElevation(dp(12));
+        editor.setPadding(dp(16), dp(14), dp(16), dp(16));
+        editor.setBackground(rounded(DesignTokens.PAPER, dp(18), DesignTokens.BORDER, dp(1)));
+        editor.setElevation(dp(8));
         editor.setVisibility(GONE);
 
         LinearLayout top = new LinearLayout(getContext());
         top.setGravity(Gravity.CENTER_VERTICAL);
-        top.addView(text("일정 편집", 17, true, Color.rgb(52, 54, 66)),
+        top.addView(text("일정 편집", 17, true, DesignTokens.INK),
                 new LinearLayout.LayoutParams(0, dp(40), 1));
         Button close = soft("닫기");
         top.addView(close, new LinearLayout.LayoutParams(dp(62), dp(38)));
@@ -258,7 +260,7 @@ final class CalendarBoardView extends FrameLayout {
         times.addView(endTimeButton, etlp);
         form.addView(times, rowLp());
 
-        form.addView(text("색", 12, true, Color.rgb(82, 82, 92)));
+        form.addView(text("색", 12, true, DesignTokens.SECONDARY));
         colorRow = new LinearLayout(getContext());
         int[] colors = {
                 Color.rgb(127,112,232), Color.rgb(81,137,229), Color.rgb(74,171,143),
@@ -445,8 +447,15 @@ final class CalendarBoardView extends FrameLayout {
             int e = CalendarStore.addDays(s, 6);
             monthLabel.setText(shortDay(s) + " ~ " + shortDay(e));
         }
-        weekButton.setAlpha(grid.getViewMode() == CalendarGridView.VIEW_WEEK ? 1f : .55f);
-        monthButton.setAlpha(grid.getViewMode() == CalendarGridView.VIEW_MONTH ? 1f : .55f);
+        boolean week = grid.getViewMode() == CalendarGridView.VIEW_WEEK;
+        weekButton.setAlpha(week ? 1f : .72f);
+        monthButton.setAlpha(week ? .72f : 1f);
+        weekButton.setBackground(rounded(
+                week ? DesignTokens.CALENDAR_SOFT : DesignTokens.SURFACE_SOFT,
+                dp(11), week ? DesignTokens.CALENDAR : DesignTokens.BORDER, dp(1)));
+        monthButton.setBackground(rounded(
+                week ? DesignTokens.SURFACE_SOFT : DesignTokens.CALENDAR_SOFT,
+                dp(11), week ? DesignTokens.BORDER : DesignTokens.CALENDAR, dp(1)));
     }
 
     private void pickDate(boolean start) {
@@ -565,10 +574,10 @@ final class CalendarBoardView extends FrameLayout {
         e.setHint(hint);
         e.setSingleLine(single);
         e.setTextSize(13.5f);
-        e.setTextColor(Color.rgb(52, 55, 66));
-        e.setHintTextColor(Color.rgb(154, 157, 168));
-        e.setPadding(dp(10), dp(5), dp(10), dp(5));
-        e.setBackground(rounded(Color.WHITE, dp(13), Color.rgb(226, 226, 234), dp(1)));
+        e.setTextColor(DesignTokens.INK);
+        e.setHintTextColor(DesignTokens.MUTED);
+        e.setPadding(dp(11), dp(5), dp(11), dp(5));
+        e.setBackground(rounded(DesignTokens.SURFACE, dp(12), DesignTokens.BORDER, dp(1)));
         return e;
     }
 
@@ -590,10 +599,10 @@ final class CalendarBoardView extends FrameLayout {
         Button b = new Button(getContext());
         b.setText(value);
         b.setTextSize(11.5f);
-        b.setTextColor(Color.rgb(66, 66, 78));
+        b.setTextColor(DesignTokens.INK);
         b.setAllCaps(false);
-        b.setPadding(dp(3), 0, dp(3), 0);
-        b.setBackground(rounded(Color.rgb(249, 247, 253), dp(12), Color.rgb(226, 222, 235), dp(1)));
+        b.setPadding(dp(6), 0, dp(6), 0);
+        b.setBackground(rounded(DesignTokens.SURFACE_SOFT, dp(11), DesignTokens.BORDER, dp(1)));
         return b;
     }
 
@@ -601,7 +610,7 @@ final class CalendarBoardView extends FrameLayout {
         Button b = soft(value);
         b.setTextColor(Color.WHITE);
         b.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        b.setBackground(rounded(Color.rgb(117, 104, 230), dp(13), Color.TRANSPARENT, 0));
+        b.setBackground(rounded(DesignTokens.CALENDAR, dp(11), Color.TRANSPARENT, 0));
         return b;
     }
 
