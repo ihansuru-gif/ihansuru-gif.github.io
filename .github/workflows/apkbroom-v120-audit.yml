@@ -53,6 +53,10 @@ jobs:
           cat apkbroom_v120_hotfix.part00.b64               apkbroom_v120_hotfix.part01.b64 | tr -d '\n\r' | base64 -d > /tmp/apkbroom-v120-hotfix.tar.xz
           echo "f08e5445b6f603b52972c34ba071773b7afba2489784ed617089ca9cd52e3e82  /tmp/apkbroom-v120-hotfix.tar.xz" | sha256sum -c -
           tar -xJf /tmp/apkbroom-v120-hotfix.tar.xz -C work
+
+          tr -d '\n\r' < apkbroom_v120_hotfix2.b64 | base64 -d > /tmp/apkbroom-v120-hotfix2.tar.xz
+          echo "04d2add64184be5e65fbaac38dae53d6e47a49a4eee65e42954d015540b863c4  /tmp/apkbroom-v120-hotfix2.tar.xz" | sha256sum -c -
+          tar -xJf /tmp/apkbroom-v120-hotfix2.tar.xz -C work
           test -f work/APK_Broom_v1.2.0/app/src/main/AndroidManifest.xml
 
       - name: Unit tests and Android lint
