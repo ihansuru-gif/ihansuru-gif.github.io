@@ -92,28 +92,28 @@ final class CalendarGridView extends View {
                 float b = Math.min(height, t + cellH);
 
                 paint.setStyle(Paint.Style.FILL);
-                paint.setColor(Color.argb(236, 255, 255, 255));
+                paint.setColor(Color.rgb(255, 255, 255));
                 canvas.drawRect(l, t, r, b, paint);
 
                 paint.setStyle(Paint.Style.STROKE);
                 paint.setStrokeWidth(dp(.7f));
-                paint.setColor(Color.rgb(231, 233, 239));
+                paint.setColor(Color.rgb(235, 232, 227));
                 canvas.drawRect(l, t, r, b, paint);
 
                 int dayNum = day % 100;
-                int textColor = Color.rgb(66, 70, 82);
-                if (col == 0) textColor = Color.rgb(220, 86, 94);
-                if (col == 6) textColor = Color.rgb(76, 111, 210);
+                int textColor = DesignTokens.INK;
+                if (col == 0) textColor = Color.rgb(190, 103, 106);
+                if (col == 6) textColor = DesignTokens.TODO;
 
                 if (viewMode == VIEW_MONTH) {
                     int anchorMonth = anchorDay / 100 % 100;
                     int dayMonth = day / 100 % 100;
-                    if (anchorMonth != dayMonth) textColor = Color.rgb(173, 176, 186);
+                    if (anchorMonth != dayMonth) textColor = DesignTokens.MUTED;
                 }
 
                 if (day == today) {
                     paint.setStyle(Paint.Style.FILL);
-                    paint.setColor(Color.rgb(127, 112, 232));
+                    paint.setColor(DesignTokens.CALENDAR);
                     canvas.drawCircle(l + dp(18), t + dp(18), dp(13), paint);
                     textColor = Color.WHITE;
                 }
@@ -131,14 +131,14 @@ final class CalendarGridView extends View {
     private void drawWeekdayHeader(Canvas canvas, float cellW, float headerH) {
         String[] names = {"일", "월", "화", "수", "목", "금", "토"};
         paint.setStyle(Paint.Style.FILL);
-        paint.setColor(Color.argb(245, 249, 249, 252));
+        paint.setColor(DesignTokens.SURFACE_SOFT);
         canvas.drawRect(0, 0, getWidth(), headerH, paint);
 
         textPaint.setTextSize(sp(11.5f));
         textPaint.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         for (int i = 0; i < 7; i++) {
-            textPaint.setColor(i == 0 ? Color.rgb(218, 91, 100)
-                    : i == 6 ? Color.rgb(78, 111, 205) : Color.rgb(100, 105, 117));
+            textPaint.setColor(i == 0 ? Color.rgb(190, 103, 106)
+                    : i == 6 ? DesignTokens.TODO : DesignTokens.SECONDARY);
             float tw = textPaint.measureText(names[i]);
             canvas.drawText(names[i], i * cellW + (cellW - tw) / 2f, headerH - dp(8), textPaint);
         }
@@ -211,7 +211,7 @@ final class CalendarGridView extends View {
         if (!CalendarStore.intersects(s, e, visibleStart, visibleEnd)) return;
 
         paint.setStyle(Paint.Style.FILL);
-        paint.setColor(Color.argb(78, 127, 112, 232));
+        paint.setColor(DesignTokens.alpha(DesignTokens.CALENDAR, 68));
 
         for (int row = 0; row < rows; row++) {
             int weekStart = CalendarStore.addDays(visibleStart, row * 7);
@@ -311,7 +311,7 @@ final class CalendarGridView extends View {
     private int bestTextColor(int background) {
         double y = (0.299 * Color.red(background) + 0.587 * Color.green(background)
                 + 0.114 * Color.blue(background)) / 255d;
-        return y > .7 ? Color.rgb(47, 50, 60) : Color.WHITE;
+        return y > .7 ? DesignTokens.INK : Color.WHITE;
     }
 
     private float dp(float value) {
