@@ -208,31 +208,31 @@ final class MemoBoardView extends FrameLayout {
 
         main = new LinearLayout(getContext());
         main.setOrientation(LinearLayout.VERTICAL);
-        main.setPadding(dp(14), dp(12), dp(14), dp(14));
+        main.setPadding(dp(16), dp(14), dp(16), dp(16));
         addView(main, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
         LinearLayout top = new LinearLayout(getContext());
         top.setGravity(Gravity.CENTER_VERTICAL);
 
-        pageLabel = text("메모 1/1", 13, true, Color.rgb(78, 67, 57));
+        pageLabel = text("메모 1/1", 13, true, DesignTokens.INK);
         top.addView(pageLabel, new LinearLayout.LayoutParams(0, dp(42), 1));
 
-        Button list = soft("☰");
-        top.addView(list, new LinearLayout.LayoutParams(dp(44), dp(38)));
+        Button list = soft("목록");
+        top.addView(list, new LinearLayout.LayoutParams(dp(58), dp(38)));
 
-        Button add = soft("+");
-        LinearLayout.LayoutParams addLp = new LinearLayout.LayoutParams(dp(44), dp(38));
+        Button add = soft("추가");
+        LinearLayout.LayoutParams addLp = new LinearLayout.LayoutParams(dp(58), dp(38));
         addLp.setMargins(dp(5), 0, 0, 0);
         top.addView(add, addLp);
 
         Button color = soft("색");
-        LinearLayout.LayoutParams colorLp = new LinearLayout.LayoutParams(dp(44), dp(38));
+        LinearLayout.LayoutParams colorLp = new LinearLayout.LayoutParams(dp(48), dp(38));
         colorLp.setMargins(dp(5), 0, 0, 0);
         top.addView(color, colorLp);
 
-        Button gear = soft("⚙");
-        LinearLayout.LayoutParams gearLp = new LinearLayout.LayoutParams(dp(44), dp(38));
+        Button gear = soft("설정");
+        LinearLayout.LayoutParams gearLp = new LinearLayout.LayoutParams(dp(58), dp(38));
         gearLp.setMargins(dp(5), 0, 0, 0);
         top.addView(gear, gearLp);
         main.addView(top);
@@ -242,8 +242,8 @@ final class MemoBoardView extends FrameLayout {
         titleEdit.setHint("메모 제목");
         titleEdit.setTextSize(17);
         titleEdit.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        titleEdit.setTextColor(Color.rgb(54, 49, 45));
-        titleEdit.setHintTextColor(Color.rgb(160, 151, 141));
+        titleEdit.setTextColor(DesignTokens.INK);
+        titleEdit.setHintTextColor(DesignTokens.MUTED);
         titleEdit.setPadding(dp(2), 0, dp(2), 0);
         titleEdit.setBackgroundColor(Color.TRANSPARENT);
         main.addView(titleEdit, new LinearLayout.LayoutParams(
@@ -253,8 +253,8 @@ final class MemoBoardView extends FrameLayout {
         tagsEdit.setSingleLine(true);
         tagsEdit.setHint("#태그, #태그2");
         tagsEdit.setTextSize(12.5f);
-        tagsEdit.setTextColor(Color.rgb(87, 83, 78));
-        tagsEdit.setHintTextColor(Color.rgb(166, 159, 151));
+        tagsEdit.setTextColor(DesignTokens.SECONDARY);
+        tagsEdit.setHintTextColor(DesignTokens.MUTED);
         tagsEdit.setPadding(dp(2), 0, dp(2), 0);
         tagsEdit.setBackgroundColor(Color.TRANSPARENT);
         main.addView(tagsEdit, new LinearLayout.LayoutParams(
@@ -264,12 +264,12 @@ final class MemoBoardView extends FrameLayout {
         tabsScroll.setHorizontalScrollBarEnabled(false);
         LinearLayout tabs = new LinearLayout(getContext());
         tabs.setGravity(Gravity.CENTER_VERTICAL);
-        textTab = miniTab("T 텍스트");
-        checkTab = miniTab("☑ 체크");
-        drawTab = miniTab("✎ 낙서");
-        linkTab = miniTab("🔗 링크");
-        imageTab = miniTab("▧ 이미지");
-        voiceTab = miniTab("🎙 음성");
+        textTab = miniTab("텍스트");
+        checkTab = miniTab("체크");
+        drawTab = miniTab("그리기");
+        linkTab = miniTab("링크");
+        imageTab = miniTab("이미지");
+        voiceTab = miniTab("음성");
         Button[] tabButtons = {textTab, checkTab, drawTab, linkTab, imageTab, voiceTab};
         for (int i = 0; i < tabButtons.length; i++) {
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(76), dp(38));
@@ -355,8 +355,8 @@ final class MemoBoardView extends FrameLayout {
         bodyEdit.setGravity(Gravity.TOP | Gravity.START);
         bodyEdit.setHint("여기에 자유롭게 메모하세요");
         bodyEdit.setTextSize(14);
-        bodyEdit.setTextColor(Color.rgb(58, 54, 50));
-        bodyEdit.setHintTextColor(Color.rgb(165, 157, 148));
+        bodyEdit.setTextColor(DesignTokens.INK);
+        bodyEdit.setHintTextColor(DesignTokens.MUTED);
         bodyEdit.setPadding(dp(10), dp(9), dp(10), dp(9));
         textPane.addView(bodyEdit, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, 0, 1));
@@ -1536,9 +1536,9 @@ final class MemoBoardView extends FrameLayout {
         int paper = memoPaperColor(m);
         int surface = blend(paper, Color.WHITE, .32f);
         int border = blend(paper, Color.rgb(185, 181, 176), .45f);
-        main.setBackground(rounded(paper, dp(24), border, dp(1)));
-        bodyEdit.setBackground(new NotePaperDrawable(getContext(), surface, border, m.paperPattern, 14f));
-        linkInput.setBackground(rounded(surface, dp(13), border, dp(1)));
+        main.setBackground(rounded(paper, dp(18), border, dp(1)));
+        bodyEdit.setBackground(new NotePaperDrawable(getContext(), surface, border, m.paperPattern, 12f));
+        linkInput.setBackground(rounded(surface, dp(12), border, dp(1)));
         doodle.setCanvasColor(surface);
         doodle.setPaperPattern(m.paperPattern);
         applyChecklistBackground();
@@ -1651,9 +1651,9 @@ final class MemoBoardView extends FrameLayout {
         button.setText(value);
         button.setTextSize(11.5f);
         button.setAllCaps(false);
-        button.setTextColor(Color.rgb(67, 61, 56));
-        button.setPadding(dp(3), 0, dp(3), 0);
-        button.setBackground(rounded(Color.rgb(250, 247, 241), dp(12), Color.rgb(226, 220, 211), dp(1)));
+        button.setTextColor(DesignTokens.INK);
+        button.setPadding(dp(6), 0, dp(6), 0);
+        button.setBackground(rounded(DesignTokens.SURFACE_SOFT, dp(11), DesignTokens.BORDER, dp(1)));
         return button;
     }
 
@@ -1668,7 +1668,7 @@ final class MemoBoardView extends FrameLayout {
     }
 
     private TextView small(String value) {
-        return text(value, 12f, false, Color.rgb(105, 105, 112));
+        return text(value, 12f, false, DesignTokens.SECONDARY);
     }
 
     private GradientDrawable rounded(int color, float radius, int strokeColor, int strokeWidth) {
