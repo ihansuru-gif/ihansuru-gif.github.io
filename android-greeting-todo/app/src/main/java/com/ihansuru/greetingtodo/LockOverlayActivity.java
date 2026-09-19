@@ -65,10 +65,10 @@ public class LockOverlayActivity extends Activity {
     private Bitmap imageBitmap;
 
     private LinearLayout tabRail;
-    private TextView todoTab;
-    private TextView memoTab;
-    private TextView calendarTab;
-    private TextView imageTab;
+    private BookishSideTab todoTab;
+    private BookishSideTab memoTab;
+    private BookishSideTab calendarTab;
+    private BookishSideTab imageTab;
 
     private LinearLayout editToolbar;
     private LinearLayout detailPanel;
@@ -372,18 +372,18 @@ public class LockOverlayActivity extends Activity {
         tabRail = new LinearLayout(this);
         tabRail.setOrientation(LinearLayout.VERTICAL);
         tabRail.setGravity(Gravity.CENTER_HORIZONTAL);
-        tabRail.setPadding(dp(4), dp(6), dp(4), dp(6));
+        tabRail.setPadding(dp(3), dp(5), dp(3), dp(5));
         tabRail.setBackground(rounded(
-                Color.argb(214, 255, 255, 255),
-                dp(18),
-                Color.argb(58, 90, 102, 130),
+                Color.argb(226, 247, 245, 241),
+                dp(16),
+                Color.argb(80, 178, 172, 164),
                 dp(1)));
-        tabRail.setElevation(dp(14));
+        tabRail.setElevation(dp(8));
 
-        todoTab = sideTab("✓\n투두", "todo");
-        calendarTab = sideTab("▣\n일정", "calendar");
-        memoTab = sideTab("✎\n메모", "memo");
-        imageTab = sideTab("▧\n이미지", "image");
+        todoTab = sideTab("todo");
+        calendarTab = sideTab("calendar");
+        memoTab = sideTab("memo");
+        imageTab = sideTab("image");
 
         int scale = Prefs.tabSize(this);
         int tabW = Math.max(dp(42), Math.round(dp(52) * scale / 100f));
@@ -429,43 +429,14 @@ public class LockOverlayActivity extends Activity {
         updateTabStates();
     }
 
-    private void addRailTab(TextView tab, int width, int height) {
+    private void addRailTab(BookishSideTab tab, int width, int height) {
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(width, height);
-        if (tabRail.getChildCount() > 0) lp.setMargins(0, dp(5), 0, 0);
+        if (tabRail.getChildCount() > 0) lp.setMargins(0, dp(4), 0, 0);
         tabRail.addView(tab, lp);
     }
 
-    private TextView sideTab(String label, String key) {
-        TextView v = new TextView(this);
-        v.setText(label);
-        v.setTextSize(11.5f);
-        v.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        v.setGravity(Gravity.CENTER);
-
-        int fill;
-        int stroke;
-        int text;
-        if ("todo".equals(key)) {
-            fill = Color.rgb(235, 243, 255);
-            stroke = Color.rgb(170, 195, 240);
-            text = Color.rgb(72, 107, 184);
-        } else if ("calendar".equals(key)) {
-            fill = Color.rgb(241, 237, 255);
-            stroke = Color.rgb(197, 184, 241);
-            text = Color.rgb(111, 91, 187);
-        } else if ("memo".equals(key)) {
-            fill = Color.rgb(255, 241, 231);
-            stroke = Color.rgb(235, 199, 173);
-            text = Color.rgb(167, 103, 65);
-        } else {
-            fill = Color.rgb(232, 246, 239);
-            stroke = Color.rgb(177, 215, 199);
-            text = Color.rgb(61, 126, 101);
-        }
-        v.setTextColor(text);
-        v.setBackground(rounded(fill, dp(14), stroke, dp(1)));
-        v.setElevation(dp(2));
-        return v;
+    private BookishSideTab sideTab(String key) {
+        return new BookishSideTab(this, key);
     }
 
     private void toggleTodo() {
@@ -641,11 +612,25 @@ public class LockOverlayActivity extends Activity {
     }
 
     private void updateTabStates() {
-        if (todoTab != null) todoTab.setAlpha(todoFrame != null && todoFrame.getVisibility() == View.VISIBLE ? 1f : .55f);
-        if (calendarTab != null) calendarTab.setAlpha(calendarFrame != null && calendarFrame.getVisibility() == View.VISIBLE ? 1f : .55f);
-        if (memoTab != null) memoTab.setAlpha(memoFrame != null && memoFrame.getVisibility() == View.VISIBLE ? 1f : .55f);
+        if (todoTab != null) {
+            boolean open = todoFrame != null && todoFrame.getVisibility() == View.VISIBLE;
+            todoTab.setSelectedState(open);
+            todoTab.setAlpha(open ? 1f : .84f);
+        }
+        if (calendarTab != null) {
+            boolean open = calendarFrame != null && calendarFrame.getVisibility() == View.VISIBLE;
+            calendarTab.setSelectedState(open);
+            calendarTab.setAlpha(open ? 1f : .84f);
+        }
+        if (memoTab != null) {
+            boolean open = memoFrame != null && memoFrame.getVisibility() == View.VISIBLE;
+            memoTab.setSelectedState(open);
+            memoTab.setAlpha(open ? 1f : .84f);
+        }
         if (imageTab != null) {
-            imageTab.setAlpha(imageFrame != null && imageFrame.getVisibility() == View.VISIBLE ? 1f : .45f);
+            boolean open = imageFrame != null && imageFrame.getVisibility() == View.VISIBLE;
+            imageTab.setSelectedState(open);
+            imageTab.setAlpha(ImageStore.has(this) ? (open ? 1f : .84f) : .38f);
             imageTab.setEnabled(ImageStore.has(this));
         }
     }
