@@ -1,0 +1,36 @@
+name: Package GreetingTodo Source
+
+on:
+  push:
+    branches:
+      - build/android-greeting-todo
+    paths:
+      - '.github/workflows/package-greeting-todo-source.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Package source
+        run: |
+          cd android-greeting-todo
+          zip -r ../GreetingTodo-1.6.0-source.zip             app             build.gradle             settings.gradle             gradle.properties             DESIGN_IMPLEMENTATION_PROMPT_1.6.md             -x "app/build/*" ".gradle/*" "**/.DS_Store"
+          cd ..
+          sha256sum GreetingTodo-1.6.0-source.zip > GreetingTodo-1.6.0-source.sha256
+
+      - name: Upload source
+        uses: actions/upload-artifact@v4
+        with:
+          name: GreetingTodo-Android-1.6.0-source
+          path: |
+            GreetingTodo-1.6.0-source.zip
+            GreetingTodo-1.6.0-source.sha256
+          if-no-files-found: error
+          retention-days: 14
