@@ -317,7 +317,7 @@ public class MainActivity extends Activity {
         return row;
     }
 
-    private View settingRow(int iconType, String title, String subtitle) {
+    private LinearLayout settingRow(int iconType, String title, String subtitle) {
         LinearLayout row = new LinearLayout(this);
         row.setGravity(Gravity.CENTER_VERTICAL);
         row.setPadding(0, dp(4), 0, dp(4));
