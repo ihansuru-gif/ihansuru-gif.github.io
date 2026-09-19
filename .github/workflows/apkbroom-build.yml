@@ -50,23 +50,32 @@ jobs:
           unzip -q /tmp/apkbroom_payload.zip -d apkbroom-src
           test -f apkbroom-src/app/src/main/AndroidManifest.xml
 
+      - name: Apply v1.1 fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat apkbroom_override.part00.b64               apkbroom_override.part01.b64               apkbroom_override.part02.b64 | tr -d '\n\r' | base64 -d > /tmp/apkbroom_override.zip
+          echo "482a9af8e20efa00253dbae973abbb9fd50dca7d6fd8de41035495d1721cb4cf  /tmp/apkbroom_override.zip" | sha256sum -c -
+          unzip -qo /tmp/apkbroom_override.zip -d apkbroom-src
+          grep -q "versionName '1.1.0'" apkbroom-src/app/build.gradle
+
       - name: Test and build APK
         shell: bash
         run: |
           set -euo pipefail
           gradle -p apkbroom-src testDebugUnitTest assembleDebug --stacktrace
           mkdir -p output
-          cp apkbroom-src/app/build/outputs/apk/debug/app-debug.apk output/APK_Broom-debug.apk
-          sha256sum output/APK_Broom-debug.apk > output/APK_Broom-debug.apk.sha256
+          cp apkbroom-src/app/build/outputs/apk/debug/app-debug.apk output/APK_Broom-v1.1.0-debug.apk
+          sha256sum output/APK_Broom-v1.1.0-debug.apk > output/APK_Broom-v1.1.0-debug.apk.sha256
 
       - name: Upload APK
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: apkbroom-debug
+          name: apkbroom-v1.1.0
           path: |
-            output/APK_Broom-debug.apk
-            output/APK_Broom-debug.apk.sha256
+            output/APK_Broom-v1.1.0-debug.apk
+            output/APK_Broom-v1.1.0-debug.apk.sha256
           if-no-files-found: error
           retention-days: 7
 
@@ -83,7 +92,7 @@ jobs:
           artifact_id=""
           if [ "$BUILD_STATUS" = "success" ]; then
             for i in $(seq 1 20); do
-              artifact_id=$(curl -fsSL                 -H "Authorization: Bearer $GH_TOKEN"                 -H "Accept: application/vnd.github+json"                 "https://api.github.com/repos/$REPO/actions/runs/$RUN_ID/artifacts"                 | jq -r '.artifacts[] | select(.name=="apkbroom-debug") | .id'                 | head -n 1 || true)
+              artifact_id=$(curl -fsSL                 -H "Authorization: Bearer $GH_TOKEN"                 -H "Accept: application/vnd.github+json"                 "https://api.github.com/repos/$REPO/actions/runs/$RUN_ID/artifacts"                 | jq -r '.artifacts[] | select(.name=="apkbroom-v1.1.0") | .id'                 | head -n 1 || true)
               if [ -n "$artifact_id" ] && [ "$artifact_id" != "null" ]; then
                 break
               fi
@@ -91,14 +100,14 @@ jobs:
             done
           fi
           sha=""
-          if [ -f output/APK_Broom-debug.apk ]; then
-            sha=$(sha256sum output/APK_Broom-debug.apk | cut -d' ' -f1)
+          if [ -f output/APK_Broom-v1.1.0-debug.apk ]; then
+            sha=$(sha256sum output/APK_Broom-v1.1.0-debug.apk | cut -d' ' -f1)
           fi
-          printf '{"status":"%s","run_id":"%s","artifact_id":"%s","sha256":"%s"}\n'             "$BUILD_STATUS" "$RUN_ID" "$artifact_id" "$sha" > apkbroom-build-result.json
+          printf '{"status":"%s","version":"1.1.0","run_id":"%s","artifact_id":"%s","sha256":"%s"}\n'             "$BUILD_STATUS" "$RUN_ID" "$artifact_id" "$sha" > apkbroom-build-result.json
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add apkbroom-build-result.json
-          git commit -m "APK Broom build result [skip ci]" || true
+          git commit -m "APK Broom v1.1.0 build result [skip ci]" || true
           git push origin HEAD:apkbroom-build-20260918 || true
 
-# build trigger 3
+# v1.1.0 trigger
