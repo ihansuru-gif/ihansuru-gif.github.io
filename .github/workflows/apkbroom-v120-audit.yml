@@ -49,6 +49,10 @@ jobs:
           cat apkbroom_v120_override.part00.b64               apkbroom_v120_override.part01.b64               apkbroom_v120_override.part02.b64               apkbroom_v120_override.part03.b64 | tr -d '\n\r' | base64 -d > /tmp/apkbroom-v120-override.tar.xz
           echo "0fdfeeee867e4c5a89440efb618e930d3d32703d71a8d719599b184d39c1745b  /tmp/apkbroom-v120-override.tar.xz" | sha256sum -c -
           tar -xJf /tmp/apkbroom-v120-override.tar.xz -C work
+
+          cat apkbroom_v120_hotfix.part00.b64               apkbroom_v120_hotfix.part01.b64 | tr -d '\n\r' | base64 -d > /tmp/apkbroom-v120-hotfix.tar.xz
+          echo "f08e5445b6f603b52972c34ba071773b7afba2489784ed617089ca9cd52e3e82  /tmp/apkbroom-v120-hotfix.tar.xz" | sha256sum -c -
+          tar -xJf /tmp/apkbroom-v120-hotfix.tar.xz -C work
           test -f work/APK_Broom_v1.2.0/app/src/main/AndroidManifest.xml
 
       - name: Unit tests and Android lint
