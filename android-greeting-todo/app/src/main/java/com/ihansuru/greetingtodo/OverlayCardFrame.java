@@ -106,23 +106,23 @@ final class OverlayCardFrame extends FrameLayout {
     private void installCollapseButton() {
         collapseButton = new TextView(getContext());
         collapseButton.setText("›");
-        collapseButton.setTextSize(25f);
+        collapseButton.setTextSize(21f);
         collapseButton.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         collapseButton.setTextColor(accentColor());
         collapseButton.setGravity(Gravity.CENTER);
         collapseButton.setContentDescription(kindName() + " 카드 접기");
 
         GradientDrawable bg = new GradientDrawable();
-        bg.setColor(Color.argb(236, 255, 255, 255));
-        bg.setCornerRadius(dpLocal(14));
-        bg.setStroke(dpLocal(1), alphaColor(accentColor(), 92));
+        bg.setColor(Color.argb(226, 255, 255, 255));
+        bg.setCornerRadius(dpLocal(10));
+        bg.setStroke(dpLocal(1), alphaColor(accentColor(), 54));
         collapseButton.setBackground(bg);
-        collapseButton.setElevation(dpLocal(5));
+        collapseButton.setElevation(dpLocal(2));
 
         FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
-                dpLocal(30), dpLocal(44),
-                Gravity.END | Gravity.CENTER_VERTICAL);
-        lp.setMargins(0, 0, dpLocal(2), 0);
+                dpLocal(30), dpLocal(30),
+                Gravity.END | Gravity.TOP);
+        lp.setMargins(0, dpLocal(6), dpLocal(6), 0);
         addView(collapseButton, lp);
         collapseButton.setOnClickListener(v -> {
             if (collapseListener != null) collapseListener.onCollapse();
@@ -134,7 +134,7 @@ final class OverlayCardFrame extends FrameLayout {
         moveHandle.setText("━━");
         moveHandle.setTextSize(9.5f);
         moveHandle.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        moveHandle.setTextColor(alphaColor(accentColor(), 178));
+        moveHandle.setTextColor(alphaColor(accentColor(), 118));
         moveHandle.setGravity(Gravity.CENTER);
         moveHandle.setBackgroundColor(Color.TRANSPARENT);
         moveHandle.setContentDescription(kindName() + " 카드 이동 손잡이");
@@ -170,7 +170,7 @@ final class OverlayCardFrame extends FrameLayout {
         resizeHandle.setText("╱╱");
         resizeHandle.setTextSize(10.5f);
         resizeHandle.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        resizeHandle.setTextColor(alphaColor(accentColor(), 190));
+        resizeHandle.setTextColor(alphaColor(accentColor(), 156));
         resizeHandle.setGravity(Gravity.END | Gravity.BOTTOM);
         resizeHandle.setPadding(0, 0, dpLocal(3), dpLocal(3));
         resizeHandle.setBackgroundColor(Color.TRANSPARENT);
@@ -355,10 +355,10 @@ final class OverlayCardFrame extends FrameLayout {
     }
 
     private int accentColor() {
-        if (kind == KIND_TODO) return Color.rgb(78, 116, 205);
-        if (kind == KIND_CALENDAR) return Color.rgb(118, 94, 202);
-        if (kind == KIND_MEMO) return Color.rgb(175, 106, 66);
-        return Color.rgb(65, 129, 103);
+        if (kind == KIND_TODO) return DesignTokens.TODO;
+        if (kind == KIND_CALENDAR) return DesignTokens.CALENDAR;
+        if (kind == KIND_MEMO) return DesignTokens.MEMO;
+        return DesignTokens.IMAGE;
     }
 
     private int alphaColor(int color, int alpha) {
@@ -373,7 +373,7 @@ final class OverlayCardFrame extends FrameLayout {
 
         float inset = dpLocal(2);
         borderPaint.setStyle(Paint.Style.STROKE);
-        borderPaint.setStrokeWidth(dpLocal(2f));
+        borderPaint.setStrokeWidth(dpLocal(1.5f));
         borderPaint.setColor(accentColor());
         canvas.drawRoundRect(
                 new RectF(inset, inset, getWidth() - inset, getHeight() - inset),
