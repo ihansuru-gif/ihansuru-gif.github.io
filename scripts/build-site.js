@@ -102,20 +102,10 @@ async function main() {
   const outputRoot = insideRoot(root, required(values, 'output'), '출력');
   const notesFile = values.get('notes-file') ? insideRoot(root, values.get('notes-file'), '릴리스 노트') : '';
 
-  const names = {
-    windows: `Dabolang-${version}-Windows-x64.exe`,
-    arm64: `Dabolang-${version}-macOS-arm64.zip`,
-    x64: `Dabolang-${version}-macOS-x64.zip`
-  };
+  const names = { windows: `Dabolang-${version}-Windows-x64.exe` };
   const files = Object.fromEntries(Object.entries(names).map(([key, name]) => [key, path.join(assetsDirectory, name)]));
-  const sizes = {
-    windows: inspectBinary(files.windows, Buffer.from('MZ', 'ascii'), 'Windows EXE'),
-    arm64: inspectBinary(files.arm64, Buffer.from('PK\x03\x04', 'binary'), 'Apple Silicon ZIP'),
-    x64: inspectBinary(files.x64, Buffer.from('PK\x03\x04', 'binary'), 'Intel ZIP')
-  };
-  const [windowsHash, arm64Hash, x64Hash] = await Promise.all([
-    sha256(files.windows), sha256(files.arm64), sha256(files.x64)
-  ]);
+  const sizes = { windows: inspectBinary(files.windows, Buffer.from('MZ', 'ascii'), 'Windows EXE') };
+  const windowsHash = await sha256(files.windows);
 
   fs.rmSync(outputRoot, { recursive: true, force: true });
   const channelRoot = path.join(outputRoot, 'daborang-jitsi-screen-gallery');
@@ -139,46 +129,22 @@ async function main() {
     }
   });
 
-  const releaseBase = `https://github.com/${repository}/releases/download/${component(tag)}/`;
-  const macAssets = {
-    arm64: {
-      label: 'Apple Silicon (M1 이상)',
-      url: `${releaseBase}${component(names.arm64)}`,
-      sha256: arm64Hash,
-      size: sizes.arm64
-    },
-    x64: {
-      label: 'Intel Mac',
-      url: `${releaseBase}${component(names.x64)}`,
-      sha256: x64Hash,
-      size: sizes.x64
-    }
-  };
   const macDownloadUrl = new URL(MACOS_DRIVE_FOLDER_URL);
   if (macDownloadUrl.protocol !== 'https:' || macDownloadUrl.origin !== 'https://drive.google.com' ||
       !/^\/drive\/folders\/[0-9A-Za-z_-]+\/?$/.test(macDownloadUrl.pathname) || macDownloadUrl.search || macDownloadUrl.hash) {
     fail('macOS Google Drive 폴더 주소가 올바르지 않습니다.');
   }
-  writeJson(path.join(macRoot, 'latest.json'), {
-    schemaVersion: 1,
-    version,
-    publishedAt,
-    assets: macAssets,
-    manualDownloadUrl: macDownloadUrl.href
-  });
-
-  const hiddenPage = `<!doctype html><html lang="ko"><head><meta charset="utf-8">${NOINDEX}<meta name="googlebot" content="noindex,nofollow,noarchive,nosnippet,noimageindex"><title>다볼랭</title></head><body></body></html>\n`;
+  const hiddenPage = `<!doctype html><html lang="ko"><head><meta charset="utf-8">${NOINDEX}<meta name="googlebot" content="noindex,nofollow,noarchive,nosnippet,noimageindex"><meta name="referrer" content="no-referrer"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"><title>다볼랭</title></head><body></body></html>\n`;
   fs.writeFileSync(path.join(channelRoot, 'index.html'), hiddenPage, 'utf8');
   fs.writeFileSync(path.join(updateRoot, 'index.html'), hiddenPage, 'utf8');
   const escapedDriveUrl = escapeHtml(macDownloadUrl.href);
   const macPage = `<!doctype html>
-<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${NOINDEX}<meta name="googlebot" content="noindex,nofollow,noarchive,nosnippet,noimageindex"><meta http-equiv="refresh" content="0;url=${escapedDriveUrl}"><title>다볼랭 macOS</title>
-<style>*{box-sizing:border-box}body{margin:0;background:#f6f7fa;color:#171b24;font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR",sans-serif}main{width:min(440px,calc(100% - 32px));margin:14vh auto;padding:26px;background:#fff;border-radius:16px;box-shadow:0 12px 34px #17203318}h1{margin:0 0 10px;font-size:21px}p{margin:0 0 18px;color:#737b88;font-size:14px;line-height:1.5}a{display:block;padding:13px 15px;border-radius:10px;background:#172033;color:#fff;text-align:center;text-decoration:none;font-weight:700}a:hover,a:focus-visible{background:#2b3850}</style>
-<script>window.location.replace(${JSON.stringify(macDownloadUrl.href)});</script></head>
-<body><main><h1>다볼랭 macOS</h1><p>최신 버전 다운로드 폴더로 이동합니다.</p><a href="${escapedDriveUrl}">Google Drive 열기</a></main></body></html>\n`;
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${NOINDEX}<meta name="googlebot" content="noindex,nofollow,noarchive,nosnippet,noimageindex"><meta name="referrer" content="no-referrer"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"><meta http-equiv="refresh" content="0;url=${escapedDriveUrl}"><title>다볼랭 macOS 다운로드</title>
+<style>*{box-sizing:border-box}body{margin:0;background:#f6f7fa;color:#171b24;font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR",sans-serif}main{width:min(440px,calc(100% - 32px));margin:14vh auto;padding:26px;background:#fff;border-radius:16px;box-shadow:0 12px 34px #17203318}h1{margin:0 0 18px;font-size:21px}.downloads{display:grid;gap:10px}a{padding:13px 15px;border-radius:10px;background:#172033;color:#fff;text-align:center;text-decoration:none;font-weight:700}a:hover,a:focus-visible{background:#2b3850}small{display:block;margin-top:16px;color:#858c99;text-align:center}</style></head>
+<body><main><h1>다볼랭 macOS 다운로드</h1><div class="downloads"><a href="${escapedDriveUrl}" rel="noopener noreferrer external" referrerpolicy="no-referrer">Google Drive에서 최신판 받기</a></div><small>자동으로 이동하지 않으면 버튼을 눌러 주세요.</small></main></body></html>\n`;
   fs.writeFileSync(path.join(macRoot, 'index.html'), macPage, 'utf8');
 
-  process.stdout.write(`READY ${version} windows=${windowsHash} arm64=${arm64Hash} x64=${x64Hash} macos=google-drive\n`);
+  process.stdout.write(`READY ${version} windows=${windowsHash} mac=${macDownloadUrl.href}\n`);
 }
 
 main().catch((error) => {

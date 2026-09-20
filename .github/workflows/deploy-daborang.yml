@@ -111,7 +111,7 @@ jobs:
             --json isDraft,isPrerelease \
             --jq 'if (.isDraft == false and .isPrerelease == false) then "stable" else "blocked" end')
           test "$state" = "stable"
-      - name: Download release assets
+      - name: Download Windows release assets
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -128,8 +128,6 @@ jobs:
           test "$release_state" = $'false\tfalse'
           assets=(
             "Dabolang-${VERSION}-Windows-x64.exe"
-            "Dabolang-${VERSION}-macOS-arm64.zip"
-            "Dabolang-${VERSION}-macOS-x64.zip"
           )
           if [[ -z "$PROBE_PADDING_BYTES" ]]; then
             assets+=("Dabolang-${VERSION}-Windows-x64.legacy-compat.json")

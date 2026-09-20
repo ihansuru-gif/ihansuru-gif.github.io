@@ -14,11 +14,9 @@ const version = '9.8.7-t.6';
 const tag = `v${version}`;
 const names = {
   windows: `Dabolang-${version}-Windows-x64.exe`,
-  attestation: `Dabolang-${version}-Windows-x64.legacy-compat.json`,
-  arm64: `Dabolang-${version}-macOS-arm64.zip`,
-  x64: `Dabolang-${version}-macOS-x64.zip`
+  attestation: `Dabolang-${version}-Windows-x64.legacy-compat.json`
 };
-const macDriveUrl = 'https://drive.google.com/drive/folders/1ycUT2dFEl6kkjgpZHcshUJSaTqAwLaWz';
+const macDownloadFolderUrl = 'https://drive.google.com/drive/folders/1ycUT2dFEl6kkjgpZHcshUJSaTqAwLaWz';
 
 function dummy(filePath, header, byte) {
   const descriptor = fs.openSync(filePath, 'w');
@@ -57,8 +55,6 @@ try {
   fs.rmSync(qaRoot, { recursive: true, force: true });
   fs.mkdirSync(assetsRoot, { recursive: true });
   dummy(path.join(assetsRoot, names.windows), Buffer.from('MZ', 'ascii'), 0x57);
-  dummy(path.join(assetsRoot, names.arm64), Buffer.from('PK\x03\x04', 'binary'), 0x41);
-  dummy(path.join(assetsRoot, names.x64), Buffer.from('PK\x03\x04', 'binary'), 0x58);
   fs.writeFileSync(path.join(qaRoot, 'notes.txt'), '- 새 기능\n- 오류 수정\n', 'utf8');
 
   const windowsPath = path.join(assetsRoot, names.windows);
@@ -100,23 +96,21 @@ try {
   assert.strictEqual(result.status, 0, result.stderr || result.stdout);
   const channelRoot = path.join(siteRoot, 'daborang-jitsi-screen-gallery');
   const windowsManifest = JSON.parse(fs.readFileSync(path.join(channelRoot, 'update', 'latest.json'), 'utf8'));
-  const macManifest = JSON.parse(fs.readFileSync(path.join(channelRoot, 'mac', 'latest.json'), 'utf8'));
   assert.strictEqual(windowsManifest.version, version);
+  assert.strictEqual(windowsManifest.schemaVersion, 1);
+  assert.match(windowsManifest.publishedAt, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
   assert.deepStrictEqual(windowsManifest.notes, ['새 기능', '오류 수정']);
+  assert.deepStrictEqual(Object.keys(windowsManifest.assets), ['windows-x64']);
   assert.strictEqual(windowsManifest.assets['windows-x64'].url, `https://ihansuru-gif.github.io/daborang-jitsi-screen-gallery/update/${names.windows}`);
+  assert.match(windowsManifest.assets['windows-x64'].url, /^https:\/\//);
   assert.strictEqual(windowsManifest.assets['windows-x64'].sha256, hash(path.join(assetsRoot, names.windows)));
+  assert.match(windowsManifest.assets['windows-x64'].sha256, /^[a-f0-9]{64}$/);
   assert.strictEqual(windowsManifest.assets['windows-x64'].size, fs.statSync(path.join(assetsRoot, names.windows)).size);
   assert.deepStrictEqual(
     fs.readFileSync(path.join(channelRoot, 'update', names.windows)),
     fs.readFileSync(path.join(assetsRoot, names.windows))
   );
-  assert.strictEqual(macManifest.assets.arm64.url, `https://github.com/ihansuru-gif/ihansuru-gif.github.io/releases/download/${tag}/${names.arm64}`);
-  assert.strictEqual(macManifest.assets.x64.url, `https://github.com/ihansuru-gif/ihansuru-gif.github.io/releases/download/${tag}/${names.x64}`);
-  assert.strictEqual(macManifest.assets.arm64.sha256, hash(path.join(assetsRoot, names.arm64)));
-  assert.strictEqual(macManifest.assets.x64.sha256, hash(path.join(assetsRoot, names.x64)));
-  assert.strictEqual(macManifest.manualDownloadUrl, macDriveUrl);
-  assert.strictEqual(fs.existsSync(path.join(channelRoot, 'mac', names.arm64)), false);
-  assert.strictEqual(fs.existsSync(path.join(channelRoot, 'mac', names.x64)), false);
+  assert.strictEqual(fs.existsSync(path.join(channelRoot, 'mac', 'latest.json')), false);
   assert.strictEqual(fs.readFileSync(path.join(siteRoot, 'robots.txt'), 'utf8'), 'User-agent: *\nDisallow: /daborang-jitsi-screen-gallery/\n');
   for (const page of [
     path.join(channelRoot, 'index.html'),
@@ -127,11 +121,13 @@ try {
     assert.match(html, /noindex,nofollow,noarchive,nosnippet,noimageindex/);
   }
   const macPage = fs.readFileSync(path.join(channelRoot, 'mac', 'index.html'), 'utf8');
+  assert.match(macPage, new RegExp(macDownloadFolderUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   assert.match(macPage, /http-equiv="refresh"/);
-  assert.match(macPage, /window\.location\.replace/);
-  assert.match(macPage, /Google Drive 열기/);
-  assert.ok(macPage.includes(macDriveUrl));
+  assert.match(macPage, /Google Drive에서 최신판 받기/);
+  assert.match(macPage, /rel="noopener noreferrer external"/);
+  assert.match(macPage, /referrerpolicy="no-referrer"/);
   assert.doesNotMatch(macPage, /Windows|\.exe|업데이트 확인/);
+  assert.doesNotMatch(macPage, /releases\/download|macOS-(?:arm64|x64)\.zip/);
 
   const workflow = fs.readFileSync(path.join(root, '.github', 'workflows', 'deploy-daborang.yml'), 'utf8').replace(/\r\n/g, '\n');
   assert.match(workflow, /push:\s*\n\s+branches: \[main\]/);
@@ -229,12 +225,14 @@ try {
   ]);
   assert.notStrictEqual(rejectedAttestation.status, 0);
   assert.match(rejectedAttestation.stderr, /증명 SHA-256/);
+  assert.doesNotMatch(workflow, /macOS-(?:arm64|x64)\.zip/);
+  assert.strictEqual((workflow.match(/gh release download/g) || []).length, 3);
 
   fs.writeFileSync(path.join(assetsRoot, names.windows), Buffer.from('NO', 'ascii'));
   const rejected = build(path.join(qaRoot, 'rejected-site'));
   assert.notStrictEqual(rejected.status, 0);
   assert.match(rejected.stderr, /Windows EXE 파일 크기|Windows EXE 파일 헤더/);
-  process.stdout.write('PASS: public update channel validates release assets, enforces legacy attestation, and redirects macOS clients to Drive\n');
+  process.stdout.write('PASS: public update channel validates Windows assets, enforces legacy attestation, and redirects macOS clients to Drive\n');
 } finally {
   fs.rmSync(qaRoot, { recursive: true, force: true });
 }
