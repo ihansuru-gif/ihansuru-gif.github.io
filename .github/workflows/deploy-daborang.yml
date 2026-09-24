@@ -172,8 +172,21 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p _site/chuseok-game
-          cp chuseok-game/index.html _site/chuseok-game/index.html
+          cp chuseok-game/index.html chuseok-game/styles.css \
+            chuseok-game/bubble-geometry.js chuseok-game/game-core.js \
+            chuseok-game/game-art.js chuseok-game/game.js \
+            chuseok-game/CREDITS.md _site/chuseok-game/
+          mkdir -p _site/chuseok-game/assets/audio
+          for asset in main-screen.png play-reference.png clear-screen.png fail-screen.png characters-v2.png living-room-v2.png; do
+            cp "chuseok-game/assets/$asset" _site/chuseok-game/assets/
+          done
+          for sound in monkeys-spinning-monkeys.mp3 clear.ogg fail.ogg KENNEY-LICENSE.txt; do
+            cp "chuseok-game/assets/audio/$sound" _site/chuseok-game/assets/audio/
+          done
           test -s _site/chuseok-game/index.html
+          test -s _site/chuseok-game/game.js
+          test -s _site/chuseok-game/assets/living-room-v2.png
+          test -s _site/chuseok-game/assets/audio/monkeys-spinning-monkeys.mp3
       - name: Download optional compatibility probe source
         if: ${{ inputs.compat_probe_padding_bytes != '' && inputs.compat_probe_source_tag != '' }}
         shell: bash
