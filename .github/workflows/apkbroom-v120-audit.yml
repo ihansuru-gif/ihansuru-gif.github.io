@@ -1,0 +1,93 @@
+name: APK Broom v1.2 Audit Build
+
+on:
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          packages: ""
+
+      - name: Install Android platform
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager --install "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Gradle 8.9
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Reconstruct source and apply final audit fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat apkbroom_v120_txz.part00.b64               apkbroom_v120_txz.part01.b64               apkbroom_v120_txz.part02.b64               apkbroom_v120_txz.part03.b64               apkbroom_v120_txz.part04.b64 | tr -d '\n\r' | base64 -d > /tmp/apkbroom-v120.tar.xz
+          echo "fe89f8b6de74274ebcc4088ae81fab039121fe6b1d3ea0262e8566ef61046c77  /tmp/apkbroom-v120.tar.xz" | sha256sum -c -
+          mkdir -p work
+          tar -xJf /tmp/apkbroom-v120.tar.xz -C work
+
+          cat apkbroom_v120_override.part00.b64               apkbroom_v120_override.part01.b64               apkbroom_v120_override.part02.b64               apkbroom_v120_override.part03.b64 | tr -d '\n\r' | base64 -d > /tmp/apkbroom-v120-override.tar.xz
+          echo "0fdfeeee867e4c5a89440efb618e930d3d32703d71a8d719599b184d39c1745b  /tmp/apkbroom-v120-override.tar.xz" | sha256sum -c -
+          tar -xJf /tmp/apkbroom-v120-override.tar.xz -C work
+
+          cat apkbroom_v120_hotfix.part00.b64               apkbroom_v120_hotfix.part01.b64 | tr -d '\n\r' | base64 -d > /tmp/apkbroom-v120-hotfix.tar.xz
+          echo "f08e5445b6f603b52972c34ba071773b7afba2489784ed617089ca9cd52e3e82  /tmp/apkbroom-v120-hotfix.tar.xz" | sha256sum -c -
+          tar -xJf /tmp/apkbroom-v120-hotfix.tar.xz -C work
+
+          tr -d '\n\r' < apkbroom_v120_hotfix2.b64 | base64 -d > /tmp/apkbroom-v120-hotfix2.tar.xz
+          echo "04d2add64184be5e65fbaac38dae53d6e47a49a4eee65e42954d015540b863c4  /tmp/apkbroom-v120-hotfix2.tar.xz" | sha256sum -c -
+          tar -xJf /tmp/apkbroom-v120-hotfix2.tar.xz -C work
+          test -f work/APK_Broom_v1.2.0/app/src/main/AndroidManifest.xml
+
+      - name: Unit tests and Android lint
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle -p work/APK_Broom_v1.2.0 testDebugUnitTest lintDebug --stacktrace
+
+      - name: Build APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          gradle -p work/APK_Broom_v1.2.0 assembleDebug --stacktrace
+          mkdir -p output
+          cp work/APK_Broom_v1.2.0/app/build/outputs/apk/debug/app-debug.apk output/APK_Broom-v1.2.0-audited.apk
+
+      - name: Verify APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
+          AAPT="$ANDROID_HOME/build-tools/35.0.0/aapt"
+          "$APKSIGNER" verify --verbose --print-certs output/APK_Broom-v1.2.0-audited.apk | tee output/apksigner.txt
+          "$AAPT" dump badging output/APK_Broom-v1.2.0-audited.apk | tee output/badging.txt
+          sha256sum output/APK_Broom-v1.2.0-audited.apk | tee output/SHA256.txt
+          grep -q "package: name='com.local.apkbroom' versionCode='3' versionName='1.2.0'" output/badging.txt
+
+      - name: Upload audited APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: apkbroom-v1.2.0-audited
+          path: output/
+          if-no-files-found: error
+          retention-days: 7
