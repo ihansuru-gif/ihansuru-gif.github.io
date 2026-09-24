@@ -7,6 +7,7 @@ on:
       - '.github/workflows/deploy-daborang.yml'
       - 'scripts/**'
       - 'package.json'
+      - 'chuseok-game/**'
   release:
     types: [published]
   workflow_dispatch:
@@ -72,7 +73,7 @@ jobs:
 
   build:
     needs: qa
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.deploy }}
+    if: ${{ (github.event_name == 'workflow_dispatch' && inputs.deploy) || github.event_name == 'push' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     outputs:
@@ -91,11 +92,15 @@ jobs:
         id: release
         shell: bash
         env:
+          GH_TOKEN: ${{ github.token }}
           EVENT_TAG: ${{ github.event.release.tag_name }}
           MANUAL_TAG: ${{ inputs.release_tag }}
         run: |
           set -euo pipefail
           tag="${EVENT_TAG:-${MANUAL_TAG:-}}"
+          if [[ -z "$tag" ]]; then
+            tag=$(gh release list --repo "$GITHUB_REPOSITORY" --limit 50 --json tagName,isDraft,isPrerelease --jq '[.[] | select(.isDraft == false and .isPrerelease == false)][0].tagName')
+          fi
           [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
@@ -162,6 +167,13 @@ jobs:
           --assets incoming
           --notes-file incoming/release-notes.txt
           --output _site
+      - name: Add Chuseok nagging dodge game
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p _site/chuseok-game
+          cp chuseok-game/index.html _site/chuseok-game/index.html
+          test -s _site/chuseok-game/index.html
       - name: Download optional compatibility probe source
         if: ${{ inputs.compat_probe_padding_bytes != '' && inputs.compat_probe_source_tag != '' }}
         shell: bash
