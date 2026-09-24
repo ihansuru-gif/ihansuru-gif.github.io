@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
+<title>추석 잔소리 피하기</title>
+<style>
+:root{--ink:#3b261d;--cream:#fff9ee;--panel:#fffaf2;--red:#e95736;--green:#3f7a4e;--gold:#e8b34d;--blue:#5796d8}
+*{box-sizing:border-box}html,body{margin:0;height:100%;background:#241a16;font-family:ui-rounded,"Pretendard","Noto Sans KR",system-ui,sans-serif;overflow:hidden}
+body{display:grid;place-items:center;padding:8px}.wrap{position:relative;width:min(100vw,177.78vh);aspect-ratio:16/9;background:#f7e8cd;border-radius:18px;overflow:hidden;box-shadow:0 20px 60px #0007;touch-action:none;user-select:none}
+canvas{width:100%;height:100%;display:block}.overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:4%;background:linear-gradient(#fff8,#fff0)}
+.card{width:min(76%,860px);background:#fffaf3ee;border:4px solid #6a4938;border-radius:28px;padding:28px;text-align:center;box-shadow:0 18px 40px #3d261d35}.title{font-size:clamp(34px,5vw,74px);font-weight:1000;letter-spacing:-.05em;line-height:1.05;color:#4c2a1c;text-shadow:0 3px #fff}.title b{color:#d95331}.sub{font-size:clamp(15px,1.6vw,25px);font-weight:800;color:#74523e;margin:12px 0 22px}.row{display:flex;justify-content:center;gap:14px;flex-wrap:wrap}.btn{border:0;border-radius:18px;padding:14px 28px;font-weight:1000;font-size:clamp(17px,1.7vw,26px);color:white;cursor:pointer;box-shadow:inset 0 -5px #0002,0 6px 0 #5c3a2a33}.btn:active{transform:translateY(3px);box-shadow:inset 0 -2px #0002,0 3px 0 #5c3a2a33}.start{background:#e85c35}.help{background:#d59a3d}.retry{background:#4f91d3}.home{background:#4d8d5b}.smallnote{margin-top:16px;font-weight:700;color:#87614a;font-size:clamp(12px,1.1vw,18px)}
+.helpbox{max-width:720px;text-align:left}.helpbox h2{text-align:center;margin-top:0}.helpbox li{margin:.5em 0;font-weight:750;color:#5d4535}.hidden{display:none!important}
+@media(max-width:760px){body{padding:0}.wrap{width:100vw;max-height:100vh;border-radius:0}.card{width:88%;padding:18px;border-width:3px}.row{gap:10px}.btn{padding:10px 18px;border-radius:14px}}
+</style>
+</head>
+<body>
+<div class="wrap" id="wrap">
+<canvas id="game" width="1280" height="720" aria-label="추석 잔소리 피하기 게임"></canvas>
+<div class="overlay" id="menu">
+  <div class="card">
+    <div class="title">추석 <b>잔소리</b> 피하기</div>
+    <div class="sub">명절은 즐겁게, 잔소리는 피하자! · 40초 생존</div>
+    <div class="row"><button class="btn start" id="startBtn">게임 시작</button><button class="btn help" id="helpBtn">설명</button></div>
+    <div class="smallnote">방향키/WASD · 모바일은 화면을 드래그해서 이동</div>
+  </div>
+</div>
+<div class="overlay hidden" id="help">
+  <div class="card helpbox"><h2>게임 방법</h2><ul><li>주인공은 이동만 할 수 있어요.</li><li>사방의 친척이 날리는 잔소리 말풍선을 피하세요.</li><li>하트는 3개. 세 번 맞으면 실패!</li><li>시간이 갈수록 친척이 조금씩 움직이고 잔소리가 자주 날아와요.</li><li>40초를 버티면 성공. 귀마개 엔딩!</li></ul><div class="row"><button class="btn home" id="closeHelp">확인</button></div></div>
+</div>
+<div class="overlay hidden" id="result"><div class="card"><div class="title" id="resultTitle">성공!</div><div class="sub" id="resultSub"></div><div class="row"><button class="btn retry" id="retryBtn">다시하기</button><button class="btn home" id="homeBtn">처음으로</button></div></div></div>
+</div>
+<script>
+(()=>{
+const W=1280,H=720,DURATION=40;const c=document.getElementById('game'),x=c.getContext('2d');
+const menu=document.getElementById('menu'),help=document.getElementById('help'),result=document.getElementById('result');
+const q=s=>document.querySelector(s);let state='menu',last=0,elapsed=0,hearts=3,spawnT=0,paused=false,keys=new Set(),pointer=null,projectiles=[],recentLines=[],recentRel=[];
+const PLAYER={x:640,y:400,r:22,speed:360};
+const bounds={l:145,r:1135,t:105,b:635};
+const lines=[
+'결혼은 언제 하니?','애인은 있니?','연애는 안 하니?','소개팅 안 해?','좋은 사람 없어?','눈이 너무 높은 거 아니니?','아직도 혼자야?','결혼 생각은 있니?','청첩장은 언제 주니?','요즘 만나는 사람은?',
+'취업은 했니?','회사 어디 다니니?','아직 준비 중이니?','정규직이니?','이직 생각은 없어?','승진은 언제 하니?','일은 할 만하니?','회사 계속 다닐 거니?','공무원 준비 안 해?','자격증은 땄니?',
+'월급은 얼마야?','연봉은 얼마니?','돈은 좀 모았니?','모아 놓은 돈은 있니?','집은 언제 살 거니?','전세야 월세야?','차는 있니?','적금은 들었니?','대출은 없니?','재테크는 하니?',
+'○○이는 벌써 했다던데?','○○이는 잘나가던데?','너는 왜 아직이니?','공부는 잘하고?','계획은 세워뒀니?','언제 철들래?','연락 좀 하고 살아라','부모님께 잘해라','앞으로 어떻게 살 거야?','요즘 뭐 하고 지내니?',
+'살 좀 쪘네?','살 좀 빠졌네?','밥 더 먹어라','왜 이렇게 말랐니?','운동 좀 해야지','늦게 자지 마라','아침은 먹고 다니니?','얼굴이 피곤해 보인다','휴대폰 좀 그만 봐라','명절인데 웃어야지'
+];
+const rels=[
+{name:'할머니',x:360,y:112,baseX:360,side:'top',kind:0,phase:0},{name:'할아버지',x:920,y:112,baseX:920,side:'top',kind:1,phase:1.2},
+{name:'이모',x:82,y:255,baseX:82,side:'left',kind:2,phase:2.1},{name:'고모',x:1198,y:255,baseX:1198,side:'right',kind:3,phase:2.8},
+{name:'삼촌',x:110,y:560,baseX:110,side:'left',kind:4,phase:3.5},{name:'큰아빠',x:1170,y:560,baseX:1170,side:'right',kind:5,phase:4.3}
+];
+function phase(){return elapsed<10?0:elapsed<20?1:elapsed<30?2:3}
+function diff(){return [{m:0,max:1,min:1.7,maxI:2.0},{m:2,max:2,min:1.35,maxI:1.7},{m:4,max:2,min:1.05,maxI:1.4},{m:6,max:3,min:.8,maxI:1.15}][phase()]}
+function rnd(a,b){return a+Math.random()*(b-a)}function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
+function reset(){state='play';elapsed=0;hearts=3;spawnT=.7;projectiles=[];recentLines=[];recentRel=[];PLAYER.x=640;PLAYER.y=400;paused=false;last=performance.now();for(const r of rels)r.offset=0;result.classList.add('hidden');menu.classList.add('hidden');requestAnimationFrame(loop)}
+function home(){state='menu';projectiles=[];result.classList.add('hidden');menu.classList.remove('hidden');draw()}
+q('#startBtn').onclick=reset;q('#retryBtn').onclick=reset;q('#homeBtn').onclick=home;q('#helpBtn').onclick=()=>{help.classList.remove('hidden')};q('#closeHelp').onclick=()=>help.classList.add('hidden');
+addEventListener('keydown',e=>{if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','KeyW','KeyA','KeyS','KeyD'].includes(e.code)){keys.add(e.code);e.preventDefault()}if(e.code==='Escape'&&state==='play')paused=!paused});addEventListener('keyup',e=>keys.delete(e.code));
+c.addEventListener('pointerdown',e=>{if(state!=='play')return;pointer={sx:e.clientX,sy:e.clientY,x:e.clientX,y:e.clientY};c.setPointerCapture(e.pointerId)});c.addEventListener('pointermove',e=>{if(pointer){pointer.x=e.clientX;pointer.y=e.clientY}});c.addEventListener('pointerup',()=>pointer=null);c.addEventListener('pointercancel',()=>pointer=null);
+function move(dt){let dx=0,dy=0;if(keys.has('ArrowLeft')||keys.has('KeyA'))dx--;if(keys.has('ArrowRight')||keys.has('KeyD'))dx++;if(keys.has('ArrowUp')||keys.has('KeyW'))dy--;if(keys.has('ArrowDown')||keys.has('KeyS'))dy++;if(pointer){dx+=(pointer.x-pointer.sx)/50;dy+=(pointer.y-pointer.sy)/50}const n=Math.hypot(dx,dy);if(n>0){dx/=n;dy/=n;PLAYER.x=clamp(PLAYER.x+dx*PLAYER.speed*dt,bounds.l,bounds.r);PLAYER.y=clamp(PLAYER.y+dy*PLAYER.speed*dt,bounds.t,bounds.b)}}
+function updateRel(t){const d=diff();rels.forEach((r,i)=>{if(i<d.m){r.offset=Math.sin(t*.001*25/8+r.phase)*45}else r.offset=0})}
+function pickLine(){const pool=lines.filter(s=>!recentLines.includes(s));const line=pool[(Math.random()*pool.length)|0]||lines[(Math.random()*lines.length)|0];recentLines.push(line);if(recentLines.length>5)recentLines.shift();return line}
+function safeCandidate(rx,ry){const dx=PLAYER.x-rx,dy=PLAYER.y-ry,n=Math.hypot(dx,dy)||1;const vx=dx/n*250,vy=dy/n*250;let safe=0;for(let k=0;k<8;k++){const a=Math.PI*2*k/8;const px=clamp(PLAYER.x+Math.cos(a)*PLAYER.speed*.6,bounds.l,bounds.r),py=clamp(PLAYER.y+Math.sin(a)*PLAYER.speed*.6,bounds.t,bounds.b);let ok=true;for(const p of projectiles){const fx=p.x+p.vx*.6,fy=p.y+p.vy*.6;if(Math.abs(px-fx)<90&&Math.abs(py-fy)<55){ok=false;break}}const fx=rx+vx*.6,fy=ry+vy*.6;if(Math.abs(px-fx)<90&&Math.abs(py-fy)<55)ok=false;if(ok)safe++}return safe>=2}
+function spawn(){if(projectiles.length>=14)return;const d=diff();let ids=[0,1,2,3,4,5].filter(i=>!recentRel.includes(i));if(!ids.length)ids=[0,1,2,3,4,5];ids.sort(()=>Math.random()-.5);let count=1;if(d.max>1&&Math.random()<.34)count=d.max;let fired=0;for(const i of ids){if(fired>=count)break;const r=rels[i];const rx=r.x+(r.side==='top'?r.offset:0),ry=r.y+(r.side==='left'||r.side==='right'?r.offset:0);if(!safeCandidate(rx,ry))continue;const dx=PLAYER.x-rx,dy=PLAYER.y-ry,n=Math.hypot(dx,dy)||1;projectiles.push({x:rx,y:ry,vx:dx/n*250,vy:dy/n*250,text:pickLine(),dead:false});recentRel.push(i);if(recentRel.length>1)recentRel.shift();fired++}}
+function update(dt,t){if(paused)return;elapsed+=dt;if(elapsed>=DURATION){elapsed=DURATION;end(true);return}move(dt);updateRel(t);spawnT-=dt;if(spawnT<=0){spawn();const d=diff();spawnT=rnd(d.min,d.maxI)}for(const p of projectiles){p.x+=p.vx*dt;p.y+=p.vy*dt;if(p.x<-220||p.x>W+220||p.y<-150||p.y>H+150)p.dead=true}let hit=null,best=1e9;for(const p of projectiles){if(p.dead)continue;const dx=Math.abs(PLAYER.x-p.x),dy=Math.abs(PLAYER.y-p.y);if(dx<56+PLAYER.r&&dy<22+PLAYER.r){const d=dx*dx+dy*dy;if(d<best){best=d;hit=p}}}if(hit){hit.dead=true;hearts--;if(hearts<=0){end(false);return}}projectiles=projectiles.filter(p=>!p.dead)}
+function end(ok){state=ok?'clear':'fail';projectiles=[];result.classList.remove('hidden');q('#resultTitle').innerHTML=ok?'성공!':'실패…';q('#resultSub').textContent=ok?'40초 생존! 귀마개로 잔소리 완벽 차단 ㅎㅎ':'잔소리에 포위됐다… 다시 한번 피해보자!';draw()}
+function roundRect(ctx,a,b,w,h,r,fill,stroke,lw=2){ctx.beginPath();ctx.roundRect(a,b,w,h,r);if(fill){ctx.fillStyle=fill;ctx.fill()}if(stroke){ctx.lineWidth=lw;ctx.strokeStyle=stroke;ctx.stroke()}}
+function bg(){const g=x.createLinearGradient(0,0,0,H);g.addColorStop(0,'#f6d89f');g.addColorStop(.5,'#f8ebcf');g.addColorStop(1,'#e9c28d');x.fillStyle=g;x.fillRect(0,0,W,H);x.fillStyle='#6b3d2a';x.fillRect(0,0,W,58);x.fillStyle='#f1c66a';x.beginPath();x.arc(1060,110,65,0,Math.PI*2);x.fill();for(let i=0;i<26;i++){x.fillStyle=['#db6a38','#be4f2f','#e2993a'][i%3];x.beginPath();const xx=(i*151)%W,yy=75+((i*89)%570);x.ellipse(xx,yy,10,5,(i%5)*.5,0,Math.PI*2);x.fill()}x.strokeStyle='#b99062';x.lineWidth=4;x.setLineDash([10,12]);x.strokeRect(bounds.l,bounds.t,bounds.r-bounds.l,bounds.b-bounds.t);x.setLineDash([])}
+function drawPlayer(px,py,mode=state){x.save();x.translate(px,py);if(mode==='fail')x.rotate(.16);x.fillStyle='#d7b18c';x.beginPath();x.arc(0,-24,31,0,Math.PI*2);x.fill();x.fillStyle='#4a2a22';x.beginPath();x.arc(0,-35,33,Math.PI,Math.PI*2);x.fill();x.beginPath();x.arc(23,-58,16,0,Math.PI*2);x.fill();roundRect(x,-30,5,60,42,16,'#fff4e4','#7a4b36',3);x.fillStyle='#23486c';x.beginPath();x.moveTo(-36,38);x.lineTo(36,38);x.lineTo(25,75);x.lineTo(-25,75);x.closePath();x.fill();x.strokeStyle='#d24f3a';x.lineWidth=7;x.beginPath();x.moveTo(0,5);x.lineTo(0,49);x.stroke();x.fillStyle='#2f211d';x.beginPath();x.arc(-11,-24,4,0,7);x.arc(11,-24,4,0,7);x.fill();if(mode==='clear'){x.fillStyle='#f59a2d';x.beginPath();x.arc(-31,-23,8,0,7);x.arc(31,-23,8,0,7);x.fill();x.strokeStyle='#8a462b';x.lineWidth=3;x.beginPath();x.arc(0,-12,11,0,Math.PI);x.stroke()}else if(mode==='fail'){x.strokeStyle='#2f211d';x.lineWidth=3;for(const s of [-1,1]){x.beginPath();x.moveTo(s*15-5,-28);x.lineTo(s*15+5,-18);x.moveTo(s*15+5,-28);x.lineTo(s*15-5,-18);x.stroke()}}else{x.strokeStyle='#8a462b';x.lineWidth=3;x.beginPath();x.arc(0,-10,9,0,Math.PI);x.stroke()}x.restore()}
+function drawRel(r,i,t){let ox=0,oy=0;if(r.side==='top')ox=r.offset;else oy=r.offset;const xx=r.x+ox,yy=r.y+oy;x.save();x.translate(xx,yy);const talk=state==='play'&&Math.sin(t*.004+i)>0.82;x.fillStyle=['#d8b08a','#d4aa82','#e3b793','#e3b793','#d6a77e','#d0a17b'][i];x.beginPath();x.arc(0,0,42,0,Math.PI*2);x.fill();x.fillStyle=['#c8c1b8','#b8b0a7','#5a3428','#69382d','#2f241f','#332620'][i];x.beginPath();x.arc(0,-13,43,Math.PI,Math.PI*2);x.fill();if(i<2){x.fillStyle='#ece9e3';x.beginPath();x.arc(0,-12,43,Math.PI,Math.PI*2);x.fill()}x.fillStyle='#2f211d';x.beginPath();x.arc(-13,0,4,0,7);x.arc(13,0,4,0,7);x.fill();x.strokeStyle='#8a462b';x.lineWidth=3;x.beginPath();if(talk)x.arc(0,13,10,0,Math.PI*2);else x.arc(0,9,10,0,Math.PI);x.stroke();x.font='800 17px system-ui';x.textAlign='center';x.fillStyle='#5c3b2b';x.fillText(r.name,0,66);x.restore()}
+function bubble(p){x.save();x.translate(p.x,p.y);const ang=Math.atan2(p.vy,p.vx);x.rotate(ang);roundRect(x,-75,-36,150,72,28,'#fffdf7','#4e3429',4);x.fillStyle='#fffdf7';x.beginPath();x.moveTo(74,-7);x.lineTo(94,0);x.lineTo(74,8);x.closePath();x.fill();x.strokeStyle='#4e3429';x.lineWidth=4;x.stroke();x.rotate(-ang);x.font='900 20px system-ui';x.fillStyle='#33231c';x.textAlign='center';x.textBaseline='middle';const words=p.text.split(' ');let a='',b='';for(const w of words){if((a+' '+w).trim().length<=10)a=(a+' '+w).trim();else b=(b+' '+w).trim()}if(b){x.fillText(a,0,-11);x.fillText(b,0,13)}else x.fillText(a,0,0);x.restore()}
+function hud(){for(let i=0;i<3;i++){x.fillStyle=i<hearts?'#ee4d5c':'#fff9';x.strokeStyle='#5e3328';x.lineWidth=3;x.beginPath();const bx=34+i*54,by=25;x.moveTo(bx+22,by+14);x.bezierCurveTo(bx+22,by,bx,by,bx,by+15);x.bezierCurveTo(bx,by+35,bx+22,by+47,bx+22,by+47);x.bezierCurveTo(bx+22,by+47,bx+44,by+35,bx+44,by+15);x.bezierCurveTo(bx+44,by,bx+22,by,bx+22,by+14);x.fill();x.stroke()}roundRect(x,430,20,420,36,18,'#f3eadb','#4d372d',4);roundRect(x,438,28,404*(elapsed/DURATION),20,10,'#58a665',null);roundRect(x,1190,14,62,48,16,'#3e3e3edd','#fff',3);x.fillStyle='#fff';x.font='900 26px system-ui';x.fillText('Ⅱ',1221,48)}
+function draw(){bg();const t=performance.now();if(state==='menu'){drawPlayer(640,380,'menu');rels.forEach((r,i)=>drawRel(r,i,t));return}if(state==='play'){rels.forEach((r,i)=>drawRel(r,i,t));projectiles.forEach(bubble);drawPlayer(PLAYER.x,PLAYER.y,'play');hud();if(paused){x.fillStyle='#0007';x.fillRect(0,0,W,H);x.fillStyle='#fff';x.font='1000 62px system-ui';x.textAlign='center';x.fillText('일시정지',W/2,H/2)}}else if(state==='clear'){rels.forEach((r,i)=>drawRel(r,i,t));drawPlayer(640,390,'clear')}else if(state==='fail'){rels.forEach((r,i)=>drawRel(r,i,t));drawPlayer(640,440,'fail');for(let i=0;i<5;i++){const p={x:540+i*55,y:340+(i%2)*38,vx:0,vy:0,text:['취업은?','결혼은?','애인은?','월급은?','집은?'][i]};bubble(p)}}}
+function loop(t){if(state!=='play'){draw();return}const dt=Math.min(.033,(t-last)/1000||0);last=t;update(dt,t);draw();if(state==='play')requestAnimationFrame(loop)}
+c.addEventListener('click',e=>{if(state==='play'){const r=c.getBoundingClientRect(),px=(e.clientX-r.left)/r.width*W,py=(e.clientY-r.top)/r.height*H;if(px>1170&&py<80)paused=!paused}});
+draw();
+})();
+</script>
+</body></html>
